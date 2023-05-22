@@ -9,7 +9,7 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 from torchvision import transforms
 
-from dataset import PU_MNIST_CC, PU_MNIST_SS, SCARLabeler
+from dataset import MNIST_PU_SS, PU_MNIST_CC, SCARLabeler
 from loss import PULoss
 from model import PUModel
 
@@ -29,7 +29,7 @@ def train(args, model, device, train_loader, optimizer, prior, epoch):
         optimizer.zero_grad()
         output = model(data)
 
-        loss_fct = PULoss(prior=prior)
+        loss_fct = PULoss(prior=prior, single_sample=True)
         loss = loss_fct(output.view(-1), label.type(torch.float))
         tr_loss += loss.item()
         loss.backward()
@@ -152,7 +152,7 @@ def main():
 
     args = parser.parse_args(
         (
-            "--data_dir ./data --output_dir ./output "
+            "--data_dir ./data --output_dir ./output_2 "
             "--do_train --do_eval --nnPU "
             "--train_batch_size 30000 --eval_batch_size=100"
         ).split(" ")
@@ -182,7 +182,7 @@ def main():
 
     kwargs = {"num_workers": 1, "pin_memory": True} if use_cuda else {}
 
-    train_set = PU_MNIST_SS(
+    train_set = MNIST_PU_SS(
         args.data_dir,
         SCARLabeler(
             positive_labels=[1, 3, 5, 7, 9],
@@ -200,7 +200,7 @@ def main():
         train_set, batch_size=args.train_batch_size, shuffle=True, **kwargs
     )
 
-    test_set = PU_MNIST_SS(
+    test_set = MNIST_PU_SS(
         args.data_dir,
         SCARLabeler(
             positive_labels=[1, 3, 5, 7, 9],

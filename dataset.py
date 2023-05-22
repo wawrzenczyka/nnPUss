@@ -1,6 +1,6 @@
 # %%
 import torch
-from torch.utils import data
+from torch.utils.data import DataLoader, Dataset
 from torchvision.datasets import MNIST
 
 
@@ -36,26 +36,14 @@ class SCARLabeler:
         return y, s
 
 
-class PU_MNIST_SS(MNIST):
-    def __init__(
-        self,
-        root,
-        scar_labeler: SCARLabeler,
-        train=True,
-        transform=None,
-        target_transform=None,
-        download=False,
-    ):
-        super().__init__(
-            root,
-            train=train,
-            transform=transform,
-            target_transform=target_transform,
-            download=download,
-        )
+class SingleSampleDataset(Dataset):
+    def __init__(self, scar_labeler: SCARLabeler, train: bool) -> None:
+        self.scar_labeler = scar_labeler
+        self.train = train
 
-        self.binary_targets, self.scar_targets = scar_labeler.relabel(
-            self.targets, train
+    def _convert_labels_to_pu(self):
+        self.binary_targets, self.scar_targets = self.scar_labeler.relabel(
+            self.targets, self.train
         )
 
     def __getitem__(self, idx):
@@ -74,29 +62,36 @@ class PU_MNIST_SS(MNIST):
             return None
 
 
-class _SSToCCDatasetConverter:
-    def __init__(self) -> None:
-        pass
+class CaseControlDataset(Dataset):
+    def __init__(self, scar_labeler: SCARLabeler, train: bool) -> None:
+        self.scar_labeler = scar_labeler
+        self.train = train
 
-    def convert(self, dataset: data.Dataset, is_train: bool):
-        if is_train:
-            positive_idx = torch.where(dataset.scar_targets == 1)[0]
-            dataset.data = torch.cat([dataset.data, dataset.data[positive_idx]])
-            dataset.targets = torch.cat(
-                [dataset.targets, dataset.targets[positive_idx]]
+    def _convert_labels_to_pu(self):
+        self.prior = super().get_prior()
+        self.binary_targets, self.scar_targets = self.scar_labeler.relabel(
+            self.targets, self.train
+        )
+
+        if self.train:
+            positive_idx = torch.where(self.scar_targets == 1)[0]
+            self.data = torch.cat([self.data, self.data[positive_idx]])
+            self.targets = torch.cat([self.targets, self.targets[positive_idx]])
+            self.binary_targets = torch.cat(
+                [self.binary_targets, self.binary_targets[positive_idx]]
             )
-            dataset.binary_targets = torch.cat(
-                [dataset.binary_targets, dataset.binary_targets[positive_idx]]
-            )
-            dataset.scar_targets = torch.cat(
+            self.scar_targets = torch.cat(
                 [
-                    torch.zeros_like(dataset.scar_targets),
-                    dataset.scar_targets[positive_idx],
+                    torch.zeros_like(self.scar_targets),
+                    self.scar_targets[positive_idx],
                 ]
             )
 
+    def get_prior(self):
+        return self.prior
 
-class PU_MNIST_CC(PU_MNIST_SS):
+
+class MNIST_PU_SS(SingleSampleDataset, MNIST):
     def __init__(
         self,
         root,
@@ -106,31 +101,80 @@ class PU_MNIST_CC(PU_MNIST_SS):
         target_transform=None,
         download=False,
     ):
-        super().__init__(
-            root,
+        SingleSampleDataset.__init__(
+            self,
             scar_labeler=scar_labeler,
+            train=train,
+        )
+        MNIST.__init__(
+            self,
+            root,
             train=train,
             transform=transform,
             target_transform=target_transform,
             download=download,
         )
-        self.prior = super().get_prior()
-
-        _SSToCCDatasetConverter().convert(self, train)
-
-    def get_prior(self):
-        return self.prior
+        self._convert_labels_to_pu()
 
 
-class PN_MNIST(MNIST):
-    def __getitem__(self, i):
-        input, target = super(PN_MNIST, self).__getitem__(i)
-        if target % 2 == 0:
-            target = torch.tensor(1)
-        else:
-            target = torch.tensor(-1)
-
-        return input, target
+class MNIST_PU_CC(CaseControlDataset, MNIST):
+    def __init__(
+        self,
+        root,
+        scar_labeler: SCARLabeler,
+        train=True,
+        transform=None,
+        target_transform=None,
+        download=False,
+    ):
+        CaseControlDataset.__init__(
+            self,
+            scar_labeler=scar_labeler,
+            train=train,
+        )
+        MNIST.__init__(
+            self,
+            root,
+            train=train,
+            transform=transform,
+            target_transform=target_transform,
+            download=download,
+        )
+        self._convert_labels_to_pu()
 
 
 # %%
+from typing import Any
+
+from datasets import load_dataset
+from sentence_transformers import SentenceTransformer
+
+
+class TwentyNews(Dataset):
+    def __init__(
+        self,
+        root,
+        scar_labeler: SCARLabeler,
+        train=True,
+        transform=None,
+        target_transform=None,
+        download=False,
+    ):
+        news_dataset = load_dataset("SetFit/20_newsgroups")
+        # embedding_model = SentenceTransformer("all-mpnet-base-v2")
+        embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+        if train:
+            news_dataset = news_dataset["train"]
+        else:
+            news_dataset = news_dataset["test"]
+
+        self.data = news_dataset["text"]
+        self.labels = news_dataset["label"]
+
+    def __len__(self):
+        if self.train:
+            return len(self.news_dataset)
+
+    def __getitem__(self, index) -> Any:
+        return super().__getitem__(index)
