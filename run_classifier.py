@@ -1,16 +1,25 @@
 # %%
 import argparse
 import logging
+import multiprocessing
 import os
 
 import numpy as np
+import pkbar
 import torch
 from torch.optim import Adam
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 from torchvision import transforms
 
-from dataset import MNIST_PU_SS, PU_MNIST_CC, SCARLabeler
-from loss import PULoss
+from dataset import (
+    MNIST_PU_CC,
+    MNIST_PU_SS,
+    SCARLabeler,
+    TwentyNews_PU_CC,
+    TwentyNews_PU_SS,
+)
+from dataset_configs import DatasetConfigs
+from loss import _PULoss, nnPUccLoss, nnPUssLoss, uPUccLoss, uPUssLoss
 from model import PUModel
 
 logging.basicConfig(
@@ -20,34 +29,64 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# label_frequency = 0.02
+label_frequency = 0.5
 
-def train(args, model, device, train_loader, optimizer, prior, epoch):
+dataset_config = DatasetConfigs.MNIST_SS
+PULoss = nnPUccLoss
+# dataset_config = DatasetConfigs.MNIST_SS
+# PULoss = nnPUssLoss
+# dataset_config = DatasetConfigs.MNIST_CC
+# PULoss = nnPUccLoss
+# dataset_config = DatasetConfigs.MNIST_CC
+# PULoss = nnPUssLoss
+
+# dataset_config = DatasetConfigs.TwentyNews_SS
+# PULoss = nnPUccLoss
+# dataset_config = DatasetConfigs.TwentyNews_SS
+# PULoss = nnPUssLoss
+# dataset_config = DatasetConfigs.TwentyNews_CC
+# PULoss = nnPUccLoss
+# dataset_config = DatasetConfigs.TwentyNews_CC
+# PULoss = nnPUssLoss
+
+seed = 1
+
+torch.manual_seed(seed)
+np.random.seed(seed)
+
+
+def train(args, model, device, train_loader, optimizer, prior, epoch, kbar):
     model.train()
     tr_loss = 0
-    for batch_idx, (data, target, label) in enumerate(train_loader):
+
+    for batch_idx, (data, _, label) in enumerate(train_loader):
         data, label = data.to(device), label.to(device)
         optimizer.zero_grad()
         output = model(data)
 
-        loss_fct = PULoss(prior=prior, single_sample=True)
+        loss_fct = PULoss(prior=prior)
+
         loss = loss_fct(output.view(-1), label.type(torch.float))
         tr_loss += loss.item()
         loss.backward()
         optimizer.step()
-        if batch_idx % args.log_interval == 0:
-            print(
-                "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
-                    epoch,
-                    batch_idx * len(data),
-                    len(train_loader.dataset),
-                    100.0 * batch_idx / len(train_loader),
-                    loss.item(),
-                )
-            )
-    print("Train loss: ", tr_loss)
+        # if batch_idx % args.log_interval == 0:
+        #     print(
+        #         "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
+        #             epoch,
+        #             batch_idx * len(data),
+        #             len(train_loader.dataset),
+        #             100.0 * batch_idx / len(train_loader),
+        #             loss.item(),
+        #         )
+        #     )
+        kbar.update(batch_idx, values=[("loss", loss)])
+
+    # print("Train loss: ", tr_loss)
 
 
-def test(args, model, device, test_loader, prior):
+def test(args, model, device, test_loader, prior, kbar):
     """Testing"""
     model.eval()
     test_loss = 0
@@ -57,7 +96,7 @@ def test(args, model, device, test_loader, prior):
         for data, target, _ in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            test_loss_func = PULoss(prior=prior)
+            test_loss_func = _PULoss(prior=prior)
             test_loss += test_loss_func(
                 output.view(-1), target.type(torch.float)
             ).item()  # sum up batch loss
@@ -70,19 +109,27 @@ def test(args, model, device, test_loader, prior):
             correct += pred.eq(target.view_as(pred)).sum().item()
 
     test_loss /= len(test_loader.dataset)
-    print(
-        "\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)".format(
-            test_loss,
-            correct,
-            len(test_loader.dataset),
-            100.0 * correct / len(test_loader.dataset),
-        )
+    kbar.add(
+        1,
+        values=[
+            ("test_loss", test_loss),
+            ("test_accuracy", 100.0 * correct / len(test_loader.dataset)),
+            ("pos_fraction", float(num_pos) / len(test_loader.dataset)),
+        ],
     )
-    print(
-        "Percent of examples predicted positive: ",
-        float(num_pos) / len(test_loader.dataset),
-        "\n",
-    )
+    # print(
+    #     "\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)".format(
+    #         test_loss,
+    #         correct,
+    #         len(test_loader.dataset),
+    #         100.0 * correct / len(test_loader.dataset),
+    #     )
+    # )
+    # print(
+    #     "Percent of examples predicted positive: ",
+    #     float(num_pos) / len(test_loader.dataset),
+    #     "\n",
+    # )
 
 
 def main():
@@ -161,16 +208,16 @@ def main():
     if not args.do_train and not args.do_eval:
         raise ValueError("At least one of `do_train` or `do_eval` must be True.")
 
-    if (
-        os.path.exists(args.output_dir)
-        and os.listdir(args.output_dir)
-        and args.do_train
-    ):
-        raise ValueError(
-            "Output directory ({}) already exists and is not empty.".format(
-                args.output_dir
-            )
-        )
+    # if (
+    #     os.path.exists(args.output_dir)
+    #     and os.listdir(args.output_dir)
+    #     and args.do_train
+    # ):
+    #     raise ValueError(
+    #         "Output directory ({}) already exists and is not empty.".format(
+    #             args.output_dir
+    #         )
+    #     )
     os.makedirs(args.output_dir, exist_ok=True)
     output_model_file = os.path.join(args.output_dir, "pytorch_model.bin")
 
@@ -180,51 +227,61 @@ def main():
 
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    kwargs = {"num_workers": 1, "pin_memory": True} if use_cuda else {}
-
-    train_set = MNIST_PU_SS(
-        args.data_dir,
-        SCARLabeler(
-            positive_labels=[1, 3, 5, 7, 9],
-            label_frequency=1000 / 60000,
-            NEGATIVE_LABEL=-1,
-        ),
-        train=True,
-        download=True,
-        transform=transforms.Compose(
-            [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
-        ),
+    kwargs = (
+        {"num_workers": min(multiprocessing.cpu_count() // 2, 1), "pin_memory": True}
+        if use_cuda
+        else {}
     )
+
+    kwargs = {}
+
+    data = {}
+    for is_train_set in [True, False]:
+        data["train" if is_train_set else "test"] = dataset_config.DatasetClass(
+            args.data_dir,
+            SCARLabeler(
+                positive_labels=dataset_config.positive_labels,
+                label_frequency=label_frequency,
+                NEGATIVE_LABEL=-1,
+            ),
+            train=is_train_set,
+            download=True,
+            transform=transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                    dataset_config.normalization,
+                ]
+            ),
+        )
+
+    train_set = data["train"]
     prior = train_set.get_prior()
     train_loader = torch.utils.data.DataLoader(
         train_set, batch_size=args.train_batch_size, shuffle=True, **kwargs
     )
 
-    test_set = MNIST_PU_SS(
-        args.data_dir,
-        SCARLabeler(
-            positive_labels=[1, 3, 5, 7, 9],
-            label_frequency=1000 / 60000,
-            NEGATIVE_LABEL=-1,
-        ),
-        train=False,
-        download=False,
-        transform=transforms.Compose(
-            [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
-        ),
-    )
+    test_set = data["test"]
+
     test_loader = torch.utils.data.DataLoader(
         test_set, batch_size=args.eval_batch_size, shuffle=False, **kwargs
     )
 
-    model = PUModel().to(device)
+    n_inputs = len(next(iter(train_set))[0].reshape(-1))
+    model = PUModel(n_inputs).to(device)
 
     optimizer = Adam(model.parameters(), lr=args.learning_rate, weight_decay=0.005)
 
     if args.do_train:
         for epoch in range(1, args.num_train_epochs + 1):
-            train(args, model, device, train_loader, optimizer, prior, epoch)
-            test(args, model, device, test_loader, prior)
+            kbar = pkbar.Kbar(
+                target=len(train_loader),
+                epoch=epoch - 1,
+                num_epochs=args.num_train_epochs,
+                width=8,
+                always_stateful=False,
+            )
+            train(args, model, device, train_loader, optimizer, prior, epoch, kbar)
+            test(args, model, device, test_loader, prior, kbar)
 
         torch.save(model.state_dict(), output_model_file)
 

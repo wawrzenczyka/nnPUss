@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 
-class PULoss(nn.Module):
+class _PULoss(nn.Module):
     """wrapper of loss function for PU learning"""
 
     def __init__(
@@ -14,7 +14,7 @@ class PULoss(nn.Module):
         nnPU=False,
         single_sample=False,
     ):
-        super(PULoss, self).__init__()
+        super(_PULoss, self).__init__()
         if not 0 < prior < 1:
             raise NotImplementedError("The class prior should be in (0, 1)")
         self.prior = prior
@@ -27,11 +27,11 @@ class PULoss(nn.Module):
         self.unlabeled = -1
         self.min_count = torch.tensor(1.0)
 
-    def forward(self, inp, target, test=False):
-        assert inp.shape == target.shape
+    def forward(self, x, target, test=False):
+        assert x.shape == target.shape
         positive, unlabeled = target == self.positive, target == self.unlabeled
         positive, unlabeled = positive.type(torch.float), unlabeled.type(torch.float)
-        if inp.is_cuda:
+        if x.is_cuda:
             self.min_count = self.min_count.cuda()
             self.prior = self.prior.cuda()
         n_positive, n_unlabeled = torch.max(
@@ -39,29 +39,104 @@ class PULoss(nn.Module):
         ), torch.max(self.min_count, torch.sum(unlabeled))
         n = n_positive + n_unlabeled
 
-        y_positive = self.loss_func(positive * inp) * positive
-        y_positive_inv = self.loss_func(-positive * inp) * positive
-        y_unlabeled = self.loss_func(-unlabeled * inp) * unlabeled
+        # y_positive = self.loss_func(positive * x) * positive
+        # y_positive_inv = self.loss_func(-positive * x) * positive
+        # y_unlabeled = self.loss_func(-unlabeled * x) * unlabeled
+
+        y_positive = self.loss_func(x)
+        y_unlabeled = self.loss_func(-x)
 
         if not self.single_sample:
-            positive_risk = self.prior * torch.sum(y_positive) / n_positive
-            negative_risk = (
-                -self.prior * torch.sum(y_positive_inv) / n_positive
-                + torch.sum(y_unlabeled) / n_unlabeled
-            )
-        else:
             positive_risk = self.prior * torch.sum(positive * y_positive) / n_positive
             negative_risk = (
-                (n_unlabeled / n)
-                * (1 / n_unlabeled)
-                * torch.sum(unlabeled * y_unlabeled)
+                torch.sum(unlabeled * y_unlabeled) / n_unlabeled
+                - self.prior * torch.sum(positive * y_unlabeled) / n_positive
+            )
+            # positive_risk = self.prior * torch.sum(y_positive) / n_positive
+            # negative_risk = (
+            #     -self.prior * torch.sum(y_positive_inv) / n_positive
+            #     + torch.sum(y_unlabeled) / n_unlabeled
+            # )
+        else:
+            positive_risk = self.prior * torch.sum(positive * y_positive) / n_positive
+            # negative_risk = (
+            #     (n_unlabeled / n)
+            #     * (1 / n_unlabeled)
+            #     * torch.sum(unlabeled * y_unlabeled)
+            # ) - (
+            #     torch.maximum(torch.tensor(0), self.prior - n_positive / n)
+            #     * (1 / n_positive)
+            #     * torch.sum(positive * y_unlabeled)
+            # )
+            negative_risk = (
+                (n_unlabeled / n) * torch.sum(unlabeled * y_unlabeled) / n_unlabeled
             ) - (
                 torch.maximum(torch.tensor(0), self.prior - n_positive / n)
-                * (1 / n_positive)
                 * torch.sum(positive * y_unlabeled)
+                / n_positive
             )
 
-        if negative_risk < -self.beta and self.nnPU:
+        if self.nnPU and negative_risk < -self.beta:
             return -self.gamma * negative_risk
         else:
             return positive_risk + negative_risk
+
+
+class nnPUccLoss(_PULoss):
+    def __init__(
+        self,
+        prior,
+        loss=lambda x: torch.sigmoid(-x),
+        gamma=1,
+        beta=0,
+    ):
+        super().__init__(prior, loss, gamma, beta, nnPU=True, single_sample=False)
+
+    @property
+    def name():
+        return "nnPUcc"
+
+
+class nnPUssLoss(_PULoss):
+    def __init__(
+        self,
+        prior,
+        loss=lambda x: torch.sigmoid(-x),
+        gamma=1,
+        beta=0,
+    ):
+        super().__init__(prior, loss, gamma, beta, nnPU=True, single_sample=True)
+
+    @property
+    def name():
+        return "nnPUss"
+
+
+class uPUccLoss(_PULoss):
+    def __init__(
+        self,
+        prior,
+        loss=lambda x: torch.sigmoid(-x),
+        gamma=1,
+        beta=0,
+    ):
+        super().__init__(prior, loss, gamma, beta, nnPU=False, single_sample=False)
+
+    @property
+    def name():
+        return "uPUcc"
+
+
+class uPUssLoss(_PULoss):
+    def __init__(
+        self,
+        prior,
+        loss=lambda x: torch.sigmoid(-x),
+        gamma=1,
+        beta=0,
+    ):
+        super().__init__(prior, loss, gamma, beta, nnPU=False, single_sample=True)
+
+    @property
+    def name():
+        return "uPUss"

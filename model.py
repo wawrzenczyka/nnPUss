@@ -11,9 +11,9 @@ class PUModel(nn.Module):
     Basic Multi-layer perceptron as described in "Positive-Unlabeled Learning with Non-Negative Risk Estimator"
     """
 
-    def __init__(self):
+    def __init__(self, n_inputs):
         super(PUModel, self).__init__()
-        self.fc1 = nn.Linear(784, 300, bias=False)
+        self.fc1 = nn.Linear(n_inputs, 300, bias=False)
         self.bn1 = nn.BatchNorm1d(300)
         self.fc2 = nn.Linear(300, 300, bias=False)
         self.bn2 = nn.BatchNorm1d(300)
