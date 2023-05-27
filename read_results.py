@@ -21,7 +21,15 @@ display(results_df)
 
 # %%
 (
-    results_df.pivot_table(
+    results_df[results_df.dataset.str.contains("CC")].pivot_table(
+        values="accuracy", index=["dataset", "label_frequency"], columns="model"
+    )
+    * 100
+).round(2)
+
+# %%
+(
+    results_df[results_df.dataset.str.contains("SS")].pivot_table(
         values="accuracy", index=["dataset", "label_frequency"], columns="model"
     )
     * 100

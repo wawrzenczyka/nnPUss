@@ -156,17 +156,19 @@ class MNIST_PU_CC(CaseControlDataset, MNIST):
         self._convert_labels_to_pu()
 
 
-class TwentyNews(Dataset):
+class SentenceTransformersDataset(Dataset):
     def __init__(
         self,
         root,
+        dataset_hub_path,
+        dataset_name,
         train=True,
         transform=None,
         target_transform=None,
         download=True,  # ignored
     ):
         news_dataset = load_dataset(
-            "SetFit/20_newsgroups", cache_dir=os.path.join(root, "20news")
+            dataset_hub_path, cache_dir=os.path.join(root, dataset_name)
         )
         # embedding_model = SentenceTransformer("all-mpnet-base-v2")
         embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
@@ -199,6 +201,26 @@ class TwentyNews(Dataset):
             target = self.transform(target)
 
         return data.numpy(), target
+
+
+class TwentyNews(SentenceTransformersDataset):
+    def __init__(
+        self,
+        root,
+        train=True,
+        transform=None,
+        target_transform=None,
+        download=True,  # ignored
+    ):
+        super().__init__(
+            root=root,
+            dataset_hub_path="SetFit/20_newsgroups",
+            dataset_name="20news",
+            train=train,
+            transform=transform,
+            target_transform=target_transform,
+            download=download,
+        )
 
 
 class TwentyNews_PU_SS(SingleSampleDataset, TwentyNews):
@@ -253,4 +275,73 @@ class TwentyNews_PU_CC(CaseControlDataset, TwentyNews):
         self._convert_labels_to_pu()
 
 
-# %%
+class IMDB(SentenceTransformersDataset):
+    def __init__(
+        self,
+        root,
+        train=True,
+        transform=None,
+        target_transform=None,
+        download=True,  # ignored
+    ):
+        super().__init__(
+            root=root,
+            dataset_hub_path="imdb",
+            dataset_name="IMDB",
+            train=train,
+            transform=transform,
+            target_transform=target_transform,
+            download=download,
+        )
+
+
+class IMDB_PU_SS(SingleSampleDataset, IMDB):
+    def __init__(
+        self,
+        root,
+        scar_labeler: SCARLabeler,
+        train=True,
+        transform=None,
+        target_transform=None,
+        download=True,  # ignored
+    ):
+        SingleSampleDataset.__init__(
+            self,
+            scar_labeler=scar_labeler,
+            train=train,
+        )
+        IMDB.__init__(
+            self,
+            root,
+            train=train,
+            transform=transform,
+            target_transform=target_transform,
+            download=download,
+        )
+        self._convert_labels_to_pu()
+
+
+class IMDB_PU_CC(CaseControlDataset, IMDB):
+    def __init__(
+        self,
+        root,
+        scar_labeler: SCARLabeler,
+        train=True,
+        transform=None,
+        target_transform=None,
+        download=True,  # ignored
+    ):
+        CaseControlDataset.__init__(
+            self,
+            scar_labeler=scar_labeler,
+            train=train,
+        )
+        IMDB.__init__(
+            self,
+            root,
+            train=train,
+            transform=transform,
+            target_transform=target_transform,
+            download=download,
+        )
+        self._convert_labels_to_pu()

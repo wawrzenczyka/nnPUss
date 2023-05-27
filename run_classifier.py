@@ -196,9 +196,9 @@ def main():
 
     args = parser.parse_args(
         (
-            "--data_dir ./data --output_dir ./output_single "
+            "--data_dir ./data --output_dir ./output-single "
             "--do_train --do_eval --nnPU "
-            "--train_batch_size 30000 --eval_batch_size=100"
+            "--train_batch_size 512 --eval_batch_size 512"
         ).split(" ")
     )
 

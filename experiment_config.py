@@ -17,7 +17,7 @@ class ExperimentConfig:
     data_dir: str = os.path.join("data")
     output_root_dir: str = os.path.join("output")
 
-    train_batch_size: int = 30_000
+    train_batch_size: int = 512
     eval_batch_size: int = 128
 
     learning_rate: float = 1e-4
