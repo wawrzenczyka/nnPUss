@@ -32,12 +32,12 @@ logger = logging.getLogger(__name__)
 # label_frequency = 0.02
 label_frequency = 0.5
 
-dataset_config = DatasetConfigs.MNIST_SS
-PULoss = nnPUccLoss
+# dataset_config = DatasetConfigs.MNIST_SS
+# PULoss = nnPUccLoss
 # dataset_config = DatasetConfigs.MNIST_SS
 # PULoss = nnPUssLoss
-# dataset_config = DatasetConfigs.MNIST_CC
-# PULoss = nnPUccLoss
+dataset_config = DatasetConfigs.MNIST_CC
+PULoss = nnPUccLoss
 # dataset_config = DatasetConfigs.MNIST_CC
 # PULoss = nnPUssLoss
 
@@ -50,10 +50,7 @@ PULoss = nnPUccLoss
 # dataset_config = DatasetConfigs.TwentyNews_CC
 # PULoss = nnPUssLoss
 
-seed = 1
-
-torch.manual_seed(seed)
-np.random.seed(seed)
+seed = 42
 
 
 def train(args, model, device, train_loader, optimizer, prior, epoch, kbar):
@@ -199,7 +196,7 @@ def main():
 
     args = parser.parse_args(
         (
-            "--data_dir ./data --output_dir ./output_2 "
+            "--data_dir ./data --output_dir ./output_single "
             "--do_train --do_eval --nnPU "
             "--train_batch_size 30000 --eval_batch_size=100"
         ).split(" ")
@@ -233,7 +230,8 @@ def main():
         else {}
     )
 
-    kwargs = {}
+    torch.manual_seed(seed)
+    np.random.seed(seed)
 
     data = {}
     for is_train_set in [True, False]:
@@ -266,12 +264,17 @@ def main():
         test_set, batch_size=args.eval_batch_size, shuffle=False, **kwargs
     )
 
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
     n_inputs = len(next(iter(train_set))[0].reshape(-1))
     model = PUModel(n_inputs).to(device)
 
     optimizer = Adam(model.parameters(), lr=args.learning_rate, weight_decay=0.005)
 
     if args.do_train:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
         for epoch in range(1, args.num_train_epochs + 1):
             kbar = pkbar.Kbar(
                 target=len(train_loader),

@@ -1,10 +1,10 @@
+from abc import abstractmethod
+
 import torch
 from torch import nn
 
 
 class _PULoss(nn.Module):
-    """wrapper of loss function for PU learning"""
-
     def __init__(
         self,
         prior,
@@ -14,7 +14,7 @@ class _PULoss(nn.Module):
         nnPU=False,
         single_sample=False,
     ):
-        super(_PULoss, self).__init__()
+        super().__init__()
         if not 0 < prior < 1:
             raise NotImplementedError("The class prior should be in (0, 1)")
         self.prior = prior
@@ -81,8 +81,15 @@ class _PULoss(nn.Module):
         else:
             return positive_risk + negative_risk
 
+    @property
+    @abstractmethod
+    def name():
+        raise NotImplementedError("Implement in subclasses")
+
 
 class nnPUccLoss(_PULoss):
+    name = "nnPUcc"
+
     def __init__(
         self,
         prior,
@@ -92,12 +99,10 @@ class nnPUccLoss(_PULoss):
     ):
         super().__init__(prior, loss, gamma, beta, nnPU=True, single_sample=False)
 
-    @property
-    def name():
-        return "nnPUcc"
-
 
 class nnPUssLoss(_PULoss):
+    name = "nnPUss"
+
     def __init__(
         self,
         prior,
@@ -107,12 +112,10 @@ class nnPUssLoss(_PULoss):
     ):
         super().__init__(prior, loss, gamma, beta, nnPU=True, single_sample=True)
 
-    @property
-    def name():
-        return "nnPUss"
-
 
 class uPUccLoss(_PULoss):
+    name = "uPUcc"
+
     def __init__(
         self,
         prior,
@@ -122,12 +125,10 @@ class uPUccLoss(_PULoss):
     ):
         super().__init__(prior, loss, gamma, beta, nnPU=False, single_sample=False)
 
-    @property
-    def name():
-        return "uPUcc"
-
 
 class uPUssLoss(_PULoss):
+    name = "uPUss"
+
     def __init__(
         self,
         prior,
@@ -136,7 +137,3 @@ class uPUssLoss(_PULoss):
         beta=0,
     ):
         super().__init__(prior, loss, gamma, beta, nnPU=False, single_sample=True)
-
-    @property
-    def name():
-        return "uPUss"

@@ -65,9 +65,12 @@ class SingleSampleDataset(Dataset):
 
 
 class CaseControlDataset(Dataset):
-    def __init__(self, scar_labeler: SCARLabeler, train: bool) -> None:
+    def __init__(
+        self, scar_labeler: SCARLabeler, train: bool, NEGATIVE_LABEL: int = -1
+    ) -> None:
         self.scar_labeler = scar_labeler
         self.train = train
+        self.NEGATIVE_LABEL = NEGATIVE_LABEL
 
     def _convert_labels_to_pu(self):
         self.binary_targets, self.scar_targets = self.scar_labeler.relabel(
@@ -83,7 +86,7 @@ class CaseControlDataset(Dataset):
             )
             self.scar_targets = torch.cat(
                 [
-                    torch.zeros_like(self.scar_targets),
+                    self.NEGATIVE_LABEL * torch.ones_like(self.scar_targets),
                     self.scar_targets[positive_idx],
                 ]
             )
@@ -175,7 +178,7 @@ class TwentyNews(Dataset):
             news_dataset = news_dataset["test"]
 
         texts = news_dataset["text"]
-        self.data = embedding_model.encode(texts)
+        self.data = torch.from_numpy(embedding_model.encode(texts))
         self.targets = torch.tensor(news_dataset["label"])
         self.transform = transform
         self.target_transform = target_transform
@@ -189,7 +192,9 @@ class TwentyNews(Dataset):
         data, target = self.data[idx], self.targets[idx]
 
         if self.transform is not None:
-            data = self.transform(data.reshape(1, *data.shape)).reshape(*data.shape)
+            data = self.transform(data.numpy().reshape(1, *data.shape)).reshape(
+                *data.shape
+            )
         if self.target_transform is not None:
             target = self.transform(target)
 
