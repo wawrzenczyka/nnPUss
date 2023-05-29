@@ -20,19 +20,24 @@ results_df = pd.DataFrame.from_records(results)
 display(results_df)
 
 # %%
-(
+metric = "accuracy"
+df = (
     results_df[results_df.dataset.str.contains("CC")].pivot_table(
-        values="accuracy", index=["dataset", "label_frequency"], columns="model"
+        values=metric, index=["dataset", "label_frequency"], columns="model"
     )
     * 100
 ).round(2)
+df.to_csv(f"csv/{metric}-nnPU-CC-datasets.csv")
+df
 
 # %%
-(
+df = (
     results_df[results_df.dataset.str.contains("SS")].pivot_table(
-        values="accuracy", index=["dataset", "label_frequency"], columns="model"
+        values=metric, index=["dataset", "label_frequency"], columns="model"
     )
     * 100
 ).round(2)
+df.to_csv(f"csv/{metric}-nnPU-SS-datasets.csv")
+df
 
 # %%
