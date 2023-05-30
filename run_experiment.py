@@ -11,7 +11,7 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from dataset import SCARLabeler
+from dataset import SCAR_SS_Labeler
 from early_stopping import EarlyStopping
 from experiment_config import ExperimentConfig
 from loss import _PULoss
@@ -93,7 +93,7 @@ class Experiment:
                 "train" if is_train_set else "test"
             ] = self.experiment_config.dataset_config.DatasetClass(
                 self.experiment_config.data_dir,
-                SCARLabeler(
+                SCAR_SS_Labeler(
                     positive_labels=self.experiment_config.dataset_config.positive_labels,
                     label_frequency=self.experiment_config.label_frequency,
                     NEGATIVE_LABEL=-1,

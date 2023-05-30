@@ -20,24 +20,34 @@ results_df = pd.DataFrame.from_records(results)
 display(results_df)
 
 # %%
-metric = "accuracy"
-df = (
-    results_df[results_df.dataset.str.contains("CC")].pivot_table(
-        values=metric, index=["dataset", "label_frequency"], columns="model"
+for metric in ["accuracy", "precision", "recall", "f1"]:
+    df = (
+        results_df[results_df.dataset.str.contains("CC")].pivot_table(
+            values=metric, index=["dataset", "label_frequency"], columns="model"
+        )
+        * 100
     )
-    * 100
-).round(2)
-df.to_csv(f"csv/{metric}-nnPU-CC-datasets.csv")
-df
+    df["nnPUcc improvement"] = df["nnPUcc"] - df["nnPUss"]
+    df["uPUcc improvement"] = df["uPUcc"] - df["uPUss"]
+    df = df.round(2)
+    df.to_csv(f"csv/{metric}-nnPU-CC-datasets.csv")
+    if metric in ["accuracy"]:
+        display(df)
 
 # %%
-df = (
-    results_df[results_df.dataset.str.contains("SS")].pivot_table(
-        values=metric, index=["dataset", "label_frequency"], columns="model"
+for metric in ["accuracy", "precision", "recall", "f1"]:
+    df = (
+        results_df[results_df.dataset.str.contains("SS")].pivot_table(
+            values=metric, index=["dataset", "label_frequency"], columns="model"
+        )
+        * 100
     )
-    * 100
-).round(2)
-df.to_csv(f"csv/{metric}-nnPU-SS-datasets.csv")
-df
+    df["nnPUss improvement"] = df["nnPUss"] - df["nnPUcc"]
+    df["uPUss improvement"] = df["uPUss"] - df["uPUcc"]
+    df = df.round(2)
+    df.to_csv(f"csv/{metric}-nnPU-SS-datasets.csv")
+    if metric in ["accuracy"]:
+        display(df)
+
 
 # %%

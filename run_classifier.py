@@ -14,7 +14,7 @@ from torchvision import transforms
 from dataset import (
     MNIST_PU_CC,
     MNIST_PU_SS,
-    SCARLabeler,
+    SCAR_SS_Labeler,
     TwentyNews_PU_CC,
     TwentyNews_PU_SS,
 )
@@ -237,7 +237,7 @@ def main():
     for is_train_set in [True, False]:
         data["train" if is_train_set else "test"] = dataset_config.DatasetClass(
             args.data_dir,
-            SCARLabeler(
+            SCAR_SS_Labeler(
                 positive_labels=dataset_config.positive_labels,
                 label_frequency=label_frequency,
                 NEGATIVE_LABEL=-1,

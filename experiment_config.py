@@ -21,10 +21,10 @@ class ExperimentConfig:
     eval_batch_size: int = 128
 
     learning_rate: float = 1e-4
+    # learning_rate: float = 1e-3
     num_epochs: int = 100
 
     force_cpu: bool = False
-    # force_cpu: bool = True
 
     @property
     def seed(self):

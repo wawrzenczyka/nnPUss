@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision.datasets import MNIST
 
 
-class SCARLabeler:
+class SCAR_SS_Labeler:
     def __init__(
         self, positive_labels=[1, 3, 5, 7, 9], label_frequency=0.5, NEGATIVE_LABEL=-1
     ) -> None:
@@ -42,19 +42,19 @@ class SCARLabeler:
 
 
 class SingleSampleDataset(Dataset):
-    def __init__(self, scar_labeler: SCARLabeler, train: bool) -> None:
-        self.scar_labeler = scar_labeler
+    def __init__(self, ss_labeler: SCAR_SS_Labeler, train: bool) -> None:
+        self.ss_labeler = ss_labeler
         self.train = train
 
     def _convert_labels_to_pu(self):
-        self.binary_targets, self.scar_targets = self.scar_labeler.relabel(
+        self.binary_targets, self.pu_targets = self.ss_labeler.relabel(
             self.targets, self.train
         )
 
     def __getitem__(self, idx):
         input, _ = super().__getitem__(idx)
         target = self.binary_targets[idx]
-        label = self.scar_targets[idx]
+        label = self.pu_targets[idx]
         return input, target, label
 
     def get_prior(self):
@@ -66,40 +66,65 @@ class SingleSampleDataset(Dataset):
 
 class CaseControlDataset(Dataset):
     def __init__(
-        self, scar_labeler: SCARLabeler, train: bool, NEGATIVE_LABEL: int = -1
+        self, ss_labeler: SCAR_SS_Labeler, train: bool, NEGATIVE_LABEL: int = -1
     ) -> None:
-        self.scar_labeler = scar_labeler
+        self.ss_labeler = ss_labeler
         self.train = train
         self.NEGATIVE_LABEL = NEGATIVE_LABEL
 
     def _convert_labels_to_pu(self):
-        self.binary_targets, self.scar_targets = self.scar_labeler.relabel(
+        self.binary_targets, self.pu_targets = self.ss_labeler.relabel(
             self.targets, self.train
         )
+        self.prior = torch.mean((self.binary_targets == 1).float())
 
         if self.train:
-            positive_idx = torch.where(self.scar_targets == 1)[0]
-            self.data = torch.cat([self.data, self.data[positive_idx]])
-            self.targets = torch.cat([self.targets, self.targets[positive_idx]])
-            self.binary_targets = torch.cat(
-                [self.binary_targets, self.binary_targets[positive_idx]]
+            positive_labeled_idx = torch.where(self.pu_targets == 1)[0]
+
+            u_sampling_condition = (
+                torch.rand_like(self.targets, dtype=float)
+                < 1 - self.ss_labeler.label_frequency
             )
-            self.scar_targets = torch.cat(
+            is_u_sample = torch.where(
+                u_sampling_condition,
+                True,
+                False,
+            )
+
+            self.data = torch.cat(
                 [
-                    self.NEGATIVE_LABEL * torch.ones_like(self.scar_targets),
-                    self.scar_targets[positive_idx],
+                    self.data[positive_labeled_idx],
+                    self.data[is_u_sample],
+                ]
+            )
+            self.targets = torch.cat(
+                [
+                    self.targets[positive_labeled_idx],
+                    self.targets[is_u_sample],
+                ]
+            )
+            self.binary_targets = torch.cat(
+                [
+                    self.binary_targets[positive_labeled_idx],
+                    self.binary_targets[is_u_sample],
+                ]
+            )
+            self.pu_targets = torch.cat(
+                [
+                    torch.ones_like(positive_labeled_idx),
+                    self.NEGATIVE_LABEL * torch.ones(is_u_sample.int().sum().item()),
                 ]
             )
 
     def __getitem__(self, idx):
         input, _ = super().__getitem__(idx)
         target = self.binary_targets[idx]
-        label = self.scar_targets[idx]
+        label = self.pu_targets[idx]
         return input, target, label
 
     def get_prior(self):
         if self.train:
-            return torch.mean((self.binary_targets == 1).float())
+            return self.prior
         else:
             return None
 
@@ -108,7 +133,7 @@ class MNIST_PU_SS(SingleSampleDataset, MNIST):
     def __init__(
         self,
         root,
-        scar_labeler: SCARLabeler,
+        scar_labeler: SCAR_SS_Labeler,
         train=True,
         transform=None,
         target_transform=None,
@@ -116,7 +141,7 @@ class MNIST_PU_SS(SingleSampleDataset, MNIST):
     ):
         SingleSampleDataset.__init__(
             self,
-            scar_labeler=scar_labeler,
+            ss_labeler=scar_labeler,
             train=train,
         )
         MNIST.__init__(
@@ -134,7 +159,7 @@ class MNIST_PU_CC(CaseControlDataset, MNIST):
     def __init__(
         self,
         root,
-        scar_labeler: SCARLabeler,
+        scar_labeler: SCAR_SS_Labeler,
         train=True,
         transform=None,
         target_transform=None,
@@ -142,7 +167,7 @@ class MNIST_PU_CC(CaseControlDataset, MNIST):
     ):
         CaseControlDataset.__init__(
             self,
-            scar_labeler=scar_labeler,
+            ss_labeler=scar_labeler,
             train=train,
         )
         MNIST.__init__(
@@ -227,7 +252,7 @@ class TwentyNews_PU_SS(SingleSampleDataset, TwentyNews):
     def __init__(
         self,
         root,
-        scar_labeler: SCARLabeler,
+        ss_labeler: SCAR_SS_Labeler,
         train=True,
         transform=None,
         target_transform=None,
@@ -235,7 +260,7 @@ class TwentyNews_PU_SS(SingleSampleDataset, TwentyNews):
     ):
         SingleSampleDataset.__init__(
             self,
-            scar_labeler=scar_labeler,
+            ss_labeler=ss_labeler,
             train=train,
         )
         TwentyNews.__init__(
@@ -253,7 +278,7 @@ class TwentyNews_PU_CC(CaseControlDataset, TwentyNews):
     def __init__(
         self,
         root,
-        scar_labeler: SCARLabeler,
+        ss_labeler: SCAR_SS_Labeler,
         train=True,
         transform=None,
         target_transform=None,
@@ -261,7 +286,7 @@ class TwentyNews_PU_CC(CaseControlDataset, TwentyNews):
     ):
         CaseControlDataset.__init__(
             self,
-            scar_labeler=scar_labeler,
+            ss_labeler=ss_labeler,
             train=train,
         )
         TwentyNews.__init__(
@@ -299,7 +324,7 @@ class IMDB_PU_SS(SingleSampleDataset, IMDB):
     def __init__(
         self,
         root,
-        scar_labeler: SCARLabeler,
+        ss_labeler: SCAR_SS_Labeler,
         train=True,
         transform=None,
         target_transform=None,
@@ -307,7 +332,7 @@ class IMDB_PU_SS(SingleSampleDataset, IMDB):
     ):
         SingleSampleDataset.__init__(
             self,
-            scar_labeler=scar_labeler,
+            ss_labeler=ss_labeler,
             train=train,
         )
         IMDB.__init__(
@@ -325,7 +350,7 @@ class IMDB_PU_CC(CaseControlDataset, IMDB):
     def __init__(
         self,
         root,
-        scar_labeler: SCARLabeler,
+        ss_labeler: SCAR_SS_Labeler,
         train=True,
         transform=None,
         target_transform=None,
@@ -333,7 +358,7 @@ class IMDB_PU_CC(CaseControlDataset, IMDB):
     ):
         CaseControlDataset.__init__(
             self,
-            scar_labeler=scar_labeler,
+            ss_labeler=ss_labeler,
             train=train,
         )
         IMDB.__init__(
@@ -345,3 +370,6 @@ class IMDB_PU_CC(CaseControlDataset, IMDB):
             download=download,
         )
         self._convert_labels_to_pu()
+
+
+# %%
