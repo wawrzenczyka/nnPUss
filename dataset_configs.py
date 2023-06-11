@@ -1,7 +1,5 @@
 from typing import TypeVar
 
-from torchvision import transforms
-
 from dataset import (
     IMDB_PU_CC,
     IMDB_PU_SS,
@@ -10,6 +8,7 @@ from dataset import (
     TwentyNews_PU_CC,
     TwentyNews_PU_SS,
 )
+from torchvision import transforms
 
 
 class DatasetConfig:
@@ -24,13 +23,13 @@ class DatasetConfigs:
     MNIST_CC = DatasetConfig(
         "MNIST CC",
         MNIST_PU_CC,
-        positive_labels=[0, 2, 4, 6, 8],
+        positive_labels=[1, 3, 5, 7, 9],
         normalization=transforms.Normalize((0.1307,), (0.3081,)),
     )
     MNIST_SS = DatasetConfig(
         "MNIST SS",
         MNIST_PU_SS,
-        positive_labels=[0, 2, 4, 6, 8],
+        positive_labels=[1, 3, 5, 7, 9],
         normalization=transforms.Normalize((0.1307,), (0.3081,)),
     )
 
