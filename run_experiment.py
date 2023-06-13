@@ -48,17 +48,17 @@ class Experiment:
         self._set_seed()
 
         self.model = self.model.to(self.device)
-        self.early_stopping = EarlyStopping(
-            self.experiment_config.model_file,
-            num_epochs=self.experiment_config.num_epochs,
-            patience=5,
-            verbose=True,
-        )
+        # self.early_stopping = EarlyStopping(
+        #     self.experiment_config.model_file,
+        #     num_epochs=self.experiment_config.num_epochs,
+        #     patience=5,
+        #     verbose=True,
+        # )
 
         training_start_time = time.perf_counter()
         for epoch in range(self.experiment_config.num_epochs):
             kbar = pkbar.Kbar(
-                target=len(self.train_loader),
+                target=len(self.train_loader) + 1,
                 epoch=epoch,
                 num_epochs=self.experiment_config.num_epochs,
                 width=8,
@@ -68,16 +68,17 @@ class Experiment:
             self._train(kbar)
             test_loss = self._test(kbar)
 
-            stop_training = self.early_stopping.check(epoch, self.model, test_loss)
-            if stop_training:
-                self.early_stopping_epoch = self.early_stopping.best_epoch
-                break
+            # stop_training = self.early_stopping.check(epoch, self.model, test_loss)
+            # if stop_training:
+            #     self.early_stopping_epoch = self.early_stopping.best_epoch
+            #     break
 
         self.training_time = time.perf_counter() - training_start_time
 
         kbar = pkbar.Kbar(
             target=1,
-            epoch=self.early_stopping_epoch,
+            # epoch=self.early_stopping_epoch,
+            epoch=epoch,
             num_epochs=self.experiment_config.num_epochs,
             width=8,
             always_stateful=False,
@@ -100,12 +101,12 @@ class Experiment:
                 ),
                 train=is_train_set,
                 download=True,
-                transform=transforms.Compose(
-                    [
-                        transforms.ToTensor(),
-                        self.experiment_config.dataset_config.normalization,
-                    ]
-                ),
+                # transform=transforms.Compose(
+                #     [
+                #         transforms.ToTensor(),
+                #         # self.experiment_config.dataset_config.normalization,
+                #     ]
+                # ),
             )
 
         train_set = data["train"]
@@ -114,6 +115,10 @@ class Experiment:
             train_set,
             batch_size=self.experiment_config.train_batch_size,
             shuffle=True,
+            num_workers=6,
+            prefetch_factor=6,
+            pin_memory=True,
+            persistent_workers=True,
         )
         self.n_inputs = len(next(iter(train_set))[0].reshape(-1))
 
@@ -129,7 +134,7 @@ class Experiment:
         self.model.train()
         tr_loss = 0
 
-        for batch_idx, (data, _, label) in enumerate(self.train_loader):
+        for batch_idx, (data, target, label) in enumerate(self.train_loader):
             data, label = data.to(self.device), label.to(self.device)
             self.optimizer.zero_grad()
             output = self.model(data)
@@ -140,7 +145,12 @@ class Experiment:
             tr_loss += loss.item()
             loss.backward()
             self.optimizer.step()
-            kbar.update(batch_idx, values=[("loss", loss)])
+
+            y_pred = torch.where(output < 0, -1, 1).to(self.device)
+            acc = metrics.accuracy_score(
+                target.cpu().numpy().reshape(-1), y_pred.cpu().numpy().reshape(-1)
+            )
+            kbar.update(batch_idx + 1, values=[("loss", loss), ("acc", acc)])
 
     def _test(self, kbar: pkbar.Kbar, save_metrics: bool = False):
         """Testing"""
@@ -155,7 +165,8 @@ class Experiment:
             for data, target, _ in self.test_loader:
                 data, target = data.to(self.device), target.to(self.device)
                 output = self.model(data)
-                test_loss_func = _PULoss(prior=self.prior)
+
+                test_loss_func = self.experiment_config.PULoss(prior=self.prior)
                 test_loss += test_loss_func(
                     output.view(-1), target.type(torch.float)
                 ).item()  # sum up batch loss
@@ -170,7 +181,7 @@ class Experiment:
                 targets.append(target)
                 preds.append(pred)
 
-        test_loss /= len(self.test_loader.dataset)
+        test_loss /= len(self.test_loader)
 
         kbar.add(
             1,
@@ -207,7 +218,8 @@ class Experiment:
             f1=metrics.f1_score(y_true, y_pred),
             auc=metrics.roc_auc_score(y_true, y_pred),
             loss=test_loss,
-            stopping_epoch=self.early_stopping_epoch,
+            # stopping_epoch=self.early_stopping_epoch,
+            stopping_epoch=self.experiment_config.num_epochs,
             time=self.training_time,
         )
 

@@ -18,11 +18,13 @@ class ExperimentConfig:
     output_root_dir: str = os.path.join("output")
 
     train_batch_size: int = 512
+    # train_batch_size: int = 30_000
     eval_batch_size: int = 128
 
-    learning_rate: float = 1e-4
+    learning_rate: float = 1e-5
+    # learning_rate: float = 1e-4
     # learning_rate: float = 1e-3
-    num_epochs: int = 100
+    num_epochs: int = 50
 
     force_cpu: bool = False
 

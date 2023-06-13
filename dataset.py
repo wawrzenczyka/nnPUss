@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from datasets import load_dataset
 from sentence_transformers import SentenceTransformer
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision.datasets import MNIST
 
 
@@ -36,7 +36,7 @@ class SCAR_SS_Labeler:
                 self.NEGATIVE_LABEL,
             )
         else:
-            s = self.scar_targets = torch.empty_like(y)
+            s = self.scar_targets = torch.zeros_like(y)
 
         return y, s
 
@@ -51,8 +51,11 @@ class SingleSampleDataset(Dataset):
             self.targets, self.train
         )
 
+    def __len__(self):
+        return len(self.pu_targets)
+
     def __getitem__(self, idx):
-        input, _ = super().__getitem__(idx)
+        input = self.data[idx]
         target = self.binary_targets[idx]
         label = self.pu_targets[idx]
         return input, target, label
@@ -116,8 +119,11 @@ class CaseControlDataset(Dataset):
                 ]
             )
 
+    def __len__(self):
+        return len(self.pu_targets)
+
     def __getitem__(self, idx):
-        input, _ = super().__getitem__(idx)
+        input = self.data[idx]
         target = self.binary_targets[idx]
         label = self.pu_targets[idx]
         return input, target, label
@@ -135,8 +141,8 @@ class MNIST_PU_SS(SingleSampleDataset, MNIST):
         root,
         scar_labeler: SCAR_SS_Labeler,
         train=True,
-        transform=None,
-        target_transform=None,
+        # transform=None,
+        # target_transform=None,
         download=False,
     ):
         SingleSampleDataset.__init__(
@@ -148,10 +154,11 @@ class MNIST_PU_SS(SingleSampleDataset, MNIST):
             self,
             root,
             train=train,
-            transform=transform,
-            target_transform=target_transform,
+            # transform=transform,
+            # target_transform=target_transform,
             download=download,
         )
+        self.data = self.data / 255.0
         self._convert_labels_to_pu()
 
 
@@ -178,6 +185,111 @@ class MNIST_PU_CC(CaseControlDataset, MNIST):
             target_transform=target_transform,
             download=download,
         )
+        self.data = self.data / 255.0
+        self._convert_labels_to_pu()
+
+
+class MNIST_PU_SS_Joined(SingleSampleDataset, MNIST):
+    def __init__(
+        self,
+        root,
+        scar_labeler: SCAR_SS_Labeler,
+        train=True,
+        transform=None,
+        target_transform=None,
+        download=False,
+        random_seed=42,
+    ):
+        SingleSampleDataset.__init__(
+            self,
+            ss_labeler=scar_labeler,
+            train=train,
+        )
+
+        self.transform = transform
+        self.target_transform = target_transform
+        self.train = train
+
+        train_mnist = MNIST(
+            root,
+            train=True,
+            transform=transform,
+            target_transform=target_transform,
+            download=download,
+        )
+        test_mnist = MNIST(
+            root,
+            train=False,
+            transform=transform,
+            target_transform=target_transform,
+            download=download,
+        )
+        self.data = torch.cat([train_mnist.data, test_mnist.data])
+        self.targets = torch.cat([train_mnist.targets, test_mnist.targets])
+
+        generator = torch.Generator().manual_seed(random_seed)
+        train_idx, test_idx = random_split(
+            range(len(self.targets)), [60_000, 10_000], generator=generator
+        )
+        if train:
+            self.data = self.data[train_idx]
+            self.targets = self.targets[train_idx]
+        else:
+            self.data = self.data[test_idx]
+            self.targets = self.targets[test_idx]
+
+        self._convert_labels_to_pu()
+
+
+class MNIST_PU_CC_Joined(CaseControlDataset, MNIST):
+    def __init__(
+        self,
+        root,
+        scar_labeler: SCAR_SS_Labeler,
+        train=True,
+        transform=None,
+        target_transform=None,
+        download=False,
+        random_seed=42,
+    ):
+        CaseControlDataset.__init__(
+            self,
+            ss_labeler=scar_labeler,
+            train=train,
+        )
+
+        self.transform = transform
+        self.target_transform = target_transform
+        self.train = train
+
+        train_mnist = MNIST(
+            root,
+            train=True,
+            transform=transform,
+            target_transform=target_transform,
+            download=download,
+        )
+        test_mnist = MNIST(
+            root,
+            train=False,
+            transform=transform,
+            target_transform=target_transform,
+            download=download,
+        )
+        self.data = torch.cat([train_mnist.data, test_mnist.data])
+        self.targets = torch.cat([train_mnist.targets, test_mnist.targets])
+
+        generator = torch.Generator().manual_seed(random_seed)
+        train_idx, test_idx = random_split(
+            range(len(self.targets)), [60_000, 10_000], generator=generator
+        )
+        if train:
+            self.data = self.data[train_idx]
+            self.targets = self.targets[train_idx]
+        else:
+            self.data = self.data[test_idx]
+            self.targets = self.targets[test_idx]
+
         self._convert_labels_to_pu()
 
 
