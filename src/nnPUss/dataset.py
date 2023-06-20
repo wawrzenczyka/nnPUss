@@ -81,12 +81,22 @@ class CaseControlDataset(Dataset):
         )
         self.prior = torch.mean((self.binary_targets == 1).float())
 
+        n = len(self.targets)
+        c = self.ss_labeler.label_frequency
+        A = 1 / (1 - c + c * self.prior)
+
+        P_sampling_probability = A * c
+        U_sampling_probability = A * (1 - c)
+
         if self.train:
-            positive_labeled_idx = torch.where(self.pu_targets == 1)[0]
+            positive_idx = torch.where(self.binary_targets == 1)[0]
+            p_sampling_condition = (
+                torch.rand_like(positive_idx, dtype=float) < P_sampling_probability
+            )
+            positive_labeled_idx = positive_idx[p_sampling_condition]
 
             u_sampling_condition = (
-                torch.rand_like(self.targets, dtype=float)
-                < 1 - self.ss_labeler.label_frequency
+                torch.rand_like(self.targets, dtype=float) < U_sampling_probability
             )
             is_u_sample = torch.where(
                 u_sampling_condition,
