@@ -51,3 +51,10 @@ for metric in ["accuracy", "precision", "recall", "f1"]:
 
 
 # %%
+results_df[
+    (results_df.dataset.str.contains("CC"))
+    & (results_df.model == "nnPUss")
+    & (results_df.label_frequency == 0.1)
+]
+
+# %%
