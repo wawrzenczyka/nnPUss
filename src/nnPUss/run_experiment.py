@@ -6,17 +6,16 @@ import time
 import numpy as np
 import pkbar
 import torch
-from sklearn import metrics
-from torch.optim import Adam
-from torch.utils.data import DataLoader
-from torchvision import transforms
-
 from dataset import SCAR_SS_Labeler
 from early_stopping import EarlyStopping
 from experiment_config import ExperimentConfig
 from loss import _PULoss
 from metric_values import MetricValues
 from model import PUModel
+from sklearn import metrics
+from torch.optim import Adam
+from torch.utils.data import DataLoader, TensorDataset
+from torchvision import transforms
 
 
 class DictJsonEncoder(json.JSONEncoder):
@@ -48,13 +47,6 @@ class Experiment:
         self._set_seed()
 
         self.model = self.model.to(self.device)
-        # self.early_stopping = EarlyStopping(
-        #     self.experiment_config.model_file,
-        #     num_epochs=self.experiment_config.num_epochs,
-        #     patience=5,
-        #     verbose=True,
-        # )
-
         training_start_time = time.perf_counter()
         for epoch in range(self.experiment_config.num_epochs):
             kbar = pkbar.Kbar(
@@ -66,24 +58,18 @@ class Experiment:
             )
 
             self._train(kbar)
-            test_loss = self._test(kbar)
-
-            # stop_training = self.early_stopping.check(epoch, self.model, test_loss)
-            # if stop_training:
-            #     self.early_stopping_epoch = self.early_stopping.best_epoch
-            #     break
+            test_loss = self._test(epoch, kbar)
 
         self.training_time = time.perf_counter() - training_start_time
 
         kbar = pkbar.Kbar(
             target=1,
-            # epoch=self.early_stopping_epoch,
             epoch=epoch,
             num_epochs=self.experiment_config.num_epochs,
             width=8,
             always_stateful=False,
         )
-        self._test(kbar, save_metrics=True)
+        self._test(epoch, kbar, save_metrics=True)
 
     def _prepare_data(self):
         self._set_seed()
@@ -115,17 +101,34 @@ class Experiment:
             train_set,
             batch_size=self.experiment_config.train_batch_size,
             shuffle=True,
-            num_workers=6,
-            prefetch_factor=6,
-            pin_memory=True,
-            persistent_workers=True,
+            # num_workers=6,
+            # prefetch_factor=6,
+            # pin_memory=True,
+            # persistent_workers=True,
         )
         self.n_inputs = len(next(iter(train_set))[0].reshape(-1))
 
         test_set = data["test"]
-
         self.test_loader = DataLoader(
             test_set,
+            batch_size=self.experiment_config.eval_batch_size,
+            shuffle=False,
+        )
+
+        x_draw = np.linspace(-5, 5, 100)
+        y_draw = np.linspace(-3, 3, 60)
+        x_mesh, y_mesh = np.meshgrid(x_draw, y_draw)
+        draw_dataset = TensorDataset(
+            torch.cat(
+                [
+                    torch.from_numpy(x_mesh.reshape(-1, 1)).float(),
+                    torch.from_numpy(y_mesh.reshape(-1, 1)).float(),
+                ],
+                axis=1,
+            )
+        )
+        self.draw_loader = DataLoader(
+            draw_dataset,
             batch_size=self.experiment_config.eval_batch_size,
             shuffle=False,
         )
@@ -152,13 +155,14 @@ class Experiment:
             )
             kbar.update(batch_idx + 1, values=[("loss", loss), ("acc", acc)])
 
-    def _test(self, kbar: pkbar.Kbar, save_metrics: bool = False):
+    def _test(self, epoch: int, kbar: pkbar.Kbar, save_metrics: bool = False):
         """Testing"""
         self.model.eval()
         test_loss = 0
         correct = 0
         num_pos = 0
 
+        test_points = []
         targets = []
         preds = []
         with torch.no_grad():
@@ -178,6 +182,7 @@ class Experiment:
                 num_pos += torch.sum(pred == 1)
                 correct += pred.eq(target.view_as(pred)).sum().item()
 
+                test_points.append(data)
                 targets.append(target)
                 preds.append(pred)
 
@@ -192,14 +197,68 @@ class Experiment:
             ],
         )
 
-        if save_metrics:
-            targets = torch.cat(targets).detach().cpu().numpy()
-            preds = torch.cat(preds).detach().cpu().numpy()
+        targets = torch.cat(targets).detach().cpu().numpy()
+        preds = torch.cat(preds).detach().cpu().numpy()
 
+        if save_metrics:
             metric_values = self._calculate_metrics(test_loss, targets, preds)
 
             with open(self.experiment_config.metrics_file, "w") as f:
                 json.dump(metric_values, f, cls=DictJsonEncoder)
+
+        # import matplotlib.pyplot as plt
+        # import numpy as np
+        # import seaborn as sns
+
+        # sns.set_theme()
+        # plt.figure(figsize=(10, 6))
+        # datas = []
+        # outs = []
+        # with torch.no_grad():
+        #     for (data,) in self.draw_loader:
+        #         data = data.to(self.device)
+        #         output = self.model(data)
+        #         datas.append(data)
+        #         outs.append(output)
+        # data = torch.cat(datas)
+        # output = torch.cat(outs)
+
+        # test_points = torch.cat(test_points).detach().cpu().numpy()
+
+        # plt.contourf(
+        #     data[:, 0].reshape(60, 100).detach().cpu(),
+        #     data[:, 1].reshape(60, 100).detach().cpu(),
+        #     output.reshape(60, 100).detach().cpu(),
+        #     cmap="PuOr",
+        #     levels=10,
+        # )
+        # contour = plt.contour(
+        #     data[:, 0].reshape(60, 100).detach().cpu(),
+        #     data[:, 1].reshape(60, 100).detach().cpu(),
+        #     output.reshape(60, 100).detach().cpu(),
+        #     levels=[0],
+        # )
+        # # plt.colorbar(contour)
+
+        # plt.scatter(
+        #     test_points[:, 0],
+        #     test_points[:, 1],
+        #     s=3,
+        #     c=np.where(targets == 1, "b", "r"),
+        #     edgecolors="black",
+        #     linewidths=0.1
+        #     # c=test_targets,
+        #     # alpha=0.5,
+        # )
+        # plt.xlim(-5, 5)
+        # plt.ylim(-3, 3)
+        # fig_dir = os.path.join(
+        #     os.path.dirname(self.experiment_config.metrics_file), "vis"
+        # )
+        # os.makedirs(fig_dir, exist_ok=True)
+        # plt.savefig(os.path.join(fig_dir, f"{epoch}.png"))
+        # plt.show()
+        # plt.close()
 
         return test_loss
 

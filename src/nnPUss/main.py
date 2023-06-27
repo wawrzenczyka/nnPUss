@@ -11,16 +11,20 @@ if __name__ == "__main__":
         # for exp_number in range(6, 8):
         # for exp_number in range(8, 10):
         for label_frequency in [
-            0.5,
-            0.02,
-            0.1,
-            0.3,
+            # 0.3,
+            # 0.8,
+            # 0.5,
+            # 0.02,
+            # 0.1,
+            # 0.3,
             0.7,
             # 1,
         ]:
             for dataset_config in [
+                # DatasetConfigs.Synthetic_SS,
+                # DatasetConfigs.Synthetic_CC,
                 DatasetConfigs.MNIST_SS,
-                DatasetConfigs.MNIST_CC,
+                # DatasetConfigs.MNIST_CC,
                 # DatasetConfigs.MNIST_SS_joined,
                 # DatasetConfigs.MNIST_CC_joined,
                 # DatasetConfigs.TwentyNews_CC,
@@ -29,9 +33,9 @@ if __name__ == "__main__":
                 # DatasetConfigs.IMDB_SS,
             ]:
                 for PULoss in [
-                    nnPUssLoss,
-                    nnPUccLoss,
-                    uPUssLoss,
+                    # nnPUssLoss,
+                    # nnPUccLoss,
+                    # uPUssLoss,
                     uPUccLoss,
                 ]:
                     experiment_config = ExperimentConfig(

@@ -1,7 +1,5 @@
 from typing import TypeVar
 
-from torchvision import transforms
-
 from dataset import (
     IMDB_PU_CC,
     IMDB_PU_SS,
@@ -12,6 +10,9 @@ from dataset import (
     TwentyNews_PU_CC,
     TwentyNews_PU_SS,
 )
+from torchvision import transforms
+
+from src.nnPUss.dataset import Synthetic_PU_CC, Synthetic_PU_SS
 
 
 class DatasetConfig:
@@ -73,4 +74,17 @@ class DatasetConfigs:
         IMDB_PU_SS,
         positive_labels=[1],
         normalization=transforms.Normalize((-0.0005,), (0.0510,)),
+    )
+
+    Synthetic_SS = DatasetConfig(
+        "Synthetic SS",
+        Synthetic_PU_SS,
+        positive_labels=[1],
+        normalization=None,
+    )
+    Synthetic_CC = DatasetConfig(
+        "Synthetic CC",
+        Synthetic_PU_CC,
+        positive_labels=[1],
+        normalization=None,
     )

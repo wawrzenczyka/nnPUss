@@ -39,10 +39,6 @@ class _PULoss(nn.Module):
         ), torch.max(self.min_count, torch.sum(unlabeled))
         n = n_positive + n_unlabeled
 
-        # y_positive = self.loss_func(positive * x) * positive
-        # y_positive_inv = self.loss_func(-positive * x) * positive
-        # y_unlabeled = self.loss_func(-unlabeled * x) * unlabeled
-
         y_positive = self.loss_func(x)
         y_unlabeled = self.loss_func(-x)
 
@@ -52,29 +48,31 @@ class _PULoss(nn.Module):
                 torch.sum(unlabeled * y_unlabeled) / n_unlabeled
                 - self.prior * torch.sum(positive * y_unlabeled) / n_positive
             )
-            # positive_risk = self.prior * torch.sum(y_positive) / n_positive
-            # negative_risk = (
-            #     -self.prior * torch.sum(y_positive_inv) / n_positive
-            #     + torch.sum(y_unlabeled) / n_unlabeled
-            # )
         else:
+            # positive_risk_c1 = (
+            #     (n_positive / n)
+            #     * torch.sum(positive * y_positive)
+            #     / n_positive
+            # )
+            # positive_risk_c2 = (
+            #     torch.maximum(torch.tensor(0), self.prior - n_positive / n)
+            #     * torch.sum(positive * y_positive)
+            #     / n_positive
+            # )
+            # positive_risk = positive_risk_c1 + positive_risk_c2
             positive_risk = self.prior * torch.sum(positive * y_positive) / n_positive
+            negative_risk = (
+                torch.sum(y_unlabeled) / n
+                - self.prior * torch.sum(positive * y_unlabeled) / n_positive
+            )
+
             # negative_risk = (
-            #     (n_unlabeled / n)
-            #     * (1 / n_unlabeled)
-            #     * torch.sum(unlabeled * y_unlabeled)
+            #     (n_unlabeled / n) * torch.sum(unlabeled * y_unlabeled) / n_unlabeled
             # ) - (
             #     torch.maximum(torch.tensor(0), self.prior - n_positive / n)
-            #     * (1 / n_positive)
             #     * torch.sum(positive * y_unlabeled)
+            #     / n_positive
             # )
-            negative_risk = (
-                (n_unlabeled / n) * torch.sum(unlabeled * y_unlabeled) / n_unlabeled
-            ) - (
-                torch.maximum(torch.tensor(0), self.prior - n_positive / n)
-                * torch.sum(positive * y_unlabeled)
-                / n_positive
-            )
 
         if self.nnPU and negative_risk < -self.beta:
             return -self.gamma * negative_risk

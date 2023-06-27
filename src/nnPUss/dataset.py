@@ -494,4 +494,111 @@ class IMDB_PU_CC(CaseControlDataset, IMDB):
         self._convert_labels_to_pu()
 
 
+class SyntheticDataset(Dataset):
+    def __init__(
+        self,
+        root,
+        train=True,
+        transform=None,
+        target_transform=None,
+        download=True,  # ignored
+        size=1000,
+        random_seed=42,
+    ):
+        self.transform = transform
+        self.target_transform = target_transform
+
+        if not train:
+            random_seed = random_seed + 42
+        generator = torch.Generator().manual_seed(random_seed)
+
+        n_pos = int(0.8 * size)
+        X_pos = torch.randn((n_pos, 2), generator=generator) + torch.tensor([[2, 0]])
+        X_neg = torch.randn((size - n_pos, 2), generator=generator) + torch.tensor(
+            [[-2, 0]]
+        )
+
+        X = torch.cat([X_pos, X_neg])
+        y = torch.cat([torch.ones(len(X_pos)), torch.zeros(len(X_neg))])
+
+        self.data, self.targets = X, y
+
+    def __len__(self):
+        # if self.train:
+        return len(self.targets)
+
+    def __getitem__(self, idx):
+        # return super().__getitem__(idx)
+        data, target = self.data[idx], self.targets[idx]
+
+        if self.transform is not None:
+            data = self.transform(data.numpy().reshape(1, *data.shape)).reshape(
+                *data.shape
+            )
+        if self.target_transform is not None:
+            target = self.transform(target)
+
+        return data.numpy(), target
+
+
+class Synthetic_PU_SS(SingleSampleDataset, SyntheticDataset):
+    def __init__(
+        self,
+        root,
+        ss_labeler: SCAR_SS_Labeler,
+        train=True,
+        transform=None,
+        target_transform=None,
+        download=True,  # ignored
+        size=1000,
+        random_seed=42,
+    ):
+        SingleSampleDataset.__init__(
+            self,
+            ss_labeler=ss_labeler,
+            train=train,
+        )
+        SyntheticDataset.__init__(
+            self,
+            root,
+            train=train,
+            transform=transform,
+            target_transform=target_transform,
+            download=download,
+            size=size,
+            random_seed=random_seed,
+        )
+        self._convert_labels_to_pu()
+
+
+class Synthetic_PU_CC(CaseControlDataset, SyntheticDataset):
+    def __init__(
+        self,
+        root,
+        ss_labeler: SCAR_SS_Labeler,
+        train=True,
+        transform=None,
+        target_transform=None,
+        download=True,  # ignored
+        size=1000,
+        random_seed=42,
+    ):
+        CaseControlDataset.__init__(
+            self,
+            ss_labeler=ss_labeler,
+            train=train,
+        )
+        SyntheticDataset.__init__(
+            self,
+            root,
+            train=train,
+            transform=transform,
+            target_transform=target_transform,
+            download=download,
+            size=size,
+            random_seed=random_seed,
+        )
+        self._convert_labels_to_pu()
+
+
 # %%
