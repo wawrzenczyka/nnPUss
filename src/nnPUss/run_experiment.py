@@ -3,8 +3,11 @@ import json
 import os
 import time
 
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import pkbar
+import seaborn as sns
 import torch
 from dataset import SCAR_SS_Labeler
 from early_stopping import EarlyStopping
@@ -48,6 +51,7 @@ class Experiment:
 
         self.model = self.model.to(self.device)
         training_start_time = time.perf_counter()
+        diagnostics = []
         for epoch in range(self.experiment_config.num_epochs):
             kbar = pkbar.Kbar(
                 target=len(self.train_loader) + 1,
@@ -57,10 +61,61 @@ class Experiment:
                 always_stateful=False,
             )
 
-            self._train(kbar)
+            epoch_diagnostics = self._train(kbar)
+            diagnostics.append(epoch_diagnostics)
             test_loss = self._test(epoch, kbar)
 
         self.training_time = time.perf_counter() - training_start_time
+
+        diagnostic_df = pd.DataFrame.from_records(diagnostics)
+        diagnostic_df["Negative CC component"] = (
+            diagnostic_df["Whole CC"] - diagnostic_df["Correction"]
+        )
+        diagnostic_df["Negative SS component"] = (
+            diagnostic_df["Whole SS"] - diagnostic_df["Correction"]
+        )
+        diagnostic_df["CC loss"] = (
+            diagnostic_df["Positive"] + diagnostic_df["Negative CC component"]
+        )
+        diagnostic_df["SS loss"] = (
+            diagnostic_df["Positive"] + diagnostic_df["Negative SS component"]
+        )
+        sns.set_theme()
+        plt.figure(figsize=(10, 8))
+        sns.lineplot(
+            data=diagnostic_df,
+            dashes=False,
+            markeredgecolor=None,
+            palette={
+                "Positive": sns.color_palette()[0],
+                "Correction": sns.color_palette()[1],
+                "Whole SS": sns.color_palette()[2],
+                "Whole CC": sns.color_palette()[3],
+                "Negative SS component": sns.color_palette()[2],
+                "Negative CC component": sns.color_palette()[3],
+                "SS loss": sns.color_palette()[2],
+                "CC loss": sns.color_palette()[3],
+            },
+            markers={
+                "Positive": None,
+                "Correction": None,
+                "Whole SS": None,
+                "Whole CC": None,
+                "Negative SS component": "|",
+                "Negative CC component": "|",
+                "SS loss": "x",
+                "CC loss": "x",
+            },
+        )
+        plt.title(
+            f"{self.experiment_config.PULoss.name} on {self.experiment_config.dataset_config.name}"
+        )
+        model_dir = os.path.join(
+            os.path.dirname(self.experiment_config.metrics_file)
+        )
+        os.makedirs(model_dir, exist_ok=True)
+        plt.savefig(os.path.join(model_dir, f"diagnostic_losses.png"))
+        plt.show()
 
         kbar = pkbar.Kbar(
             target=1,
@@ -137,6 +192,13 @@ class Experiment:
         self.model.train()
         tr_loss = 0
 
+        diagnostics = {
+            "Positive": 0,
+            "Whole CC": 0,
+            "Whole SS": 0,
+            "Correction": 0,
+        }
+
         for batch_idx, (data, target, label) in enumerate(self.train_loader):
             data, label = data.to(self.device), label.to(self.device)
             self.optimizer.zero_grad()
@@ -144,16 +206,27 @@ class Experiment:
 
             loss_fct = self.experiment_config.PULoss(prior=self.prior)
 
-            loss = loss_fct(output.view(-1), label.type(torch.float))
+            loss, batch_diagnostics = loss_fct(output.view(-1), label.type(torch.float))
             tr_loss += loss.item()
             loss.backward()
             self.optimizer.step()
+
+            diagnostics = {
+                loss: diagnostics[loss] + batch_diagnostics[loss]
+                for loss in batch_diagnostics
+            }
 
             y_pred = torch.where(output < 0, -1, 1).to(self.device)
             acc = metrics.accuracy_score(
                 target.cpu().numpy().reshape(-1), y_pred.cpu().numpy().reshape(-1)
             )
             kbar.update(batch_idx + 1, values=[("loss", loss), ("acc", acc)])
+
+        diagnostics = {
+            loss: (diagnostics[loss] / len(self.train_loader)).detach().cpu().item()
+            for loss in batch_diagnostics
+        }
+        return diagnostics
 
     def _test(self, epoch: int, kbar: pkbar.Kbar, save_metrics: bool = False):
         """Testing"""
@@ -171,9 +244,9 @@ class Experiment:
                 output = self.model(data)
 
                 test_loss_func = self.experiment_config.PULoss(prior=self.prior)
-                test_loss += test_loss_func(
-                    output.view(-1), target.type(torch.float)
-                ).item()  # sum up batch loss
+                test_loss += test_loss_func(output.view(-1), target.type(torch.float))[
+                    0
+                ].item()  # sum up batch loss
                 pred = torch.where(
                     output < 0,
                     torch.tensor(-1, device=self.device),

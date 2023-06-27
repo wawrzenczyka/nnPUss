@@ -94,7 +94,7 @@ def test(args, model, device, test_loader, prior, kbar):
             data, target = data.to(device), target.to(device)
             output = model(data)
             test_loss_func = _PULoss(prior=prior)
-            test_loss += test_loss_func(
+            test_loss, _ += test_loss_func(
                 output.view(-1), target.type(torch.float)
             ).item()  # sum up batch loss
             pred = torch.where(

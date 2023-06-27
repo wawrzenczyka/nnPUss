@@ -5,7 +5,7 @@ from loss import nnPUccLoss, nnPUssLoss, uPUccLoss, uPUssLoss
 from run_experiment import Experiment
 
 if __name__ == "__main__":
-    for exp_number in range(0, 10):
+    for exp_number in range(0, 1):
         # for exp_number in range(2, 4):
         # for exp_number in range(4, 6):
         # for exp_number in range(6, 8):
@@ -34,9 +34,9 @@ if __name__ == "__main__":
             ]:
                 for PULoss in [
                     # nnPUssLoss,
-                    # nnPUccLoss,
+                    nnPUccLoss,
                     # uPUssLoss,
-                    uPUccLoss,
+                    # uPUccLoss,
                 ]:
                     experiment_config = ExperimentConfig(
                         PULoss=PULoss,
