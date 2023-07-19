@@ -2,7 +2,6 @@ import os
 from typing import Any, Type
 
 from attr import dataclass
-
 from dataset_configs import DatasetConfig
 from loss import _PULoss
 
@@ -21,10 +20,10 @@ class ExperimentConfig:
     # train_batch_size: int = 30_000
     eval_batch_size: int = 128
 
-    learning_rate: float = 1e-5
+    # learning_rate: float = 1e-5
     # learning_rate: float = 1e-4
     # learning_rate: float = 1e-3
-    num_epochs: int = 50
+    # num_epochs: int = 50
 
     force_cpu: bool = False
 

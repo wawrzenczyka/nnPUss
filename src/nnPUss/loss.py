@@ -53,37 +53,11 @@ class _PULoss(nn.Module):
             negative_risk = negative_risk_c1_ss - negative_risk_c2
 
         diagnostic_vals = {
-            "Positive": positive_risk,
-            "Whole CC": negative_risk_c1_cc,
-            "Whole SS": negative_risk_c1_ss,
-            "Correction": negative_risk_c2,
+            "Labeled component": 0,
+            "Whole distribution component CC": 0,
+            "Whole distribution component SS": 0,
+            "PU SCAR correction": 0,
         }
-        # negative_risk = (
-        #     (n_unlabeled / n) * torch.sum(unlabeled * y_unlabeled) / n_unlabeled
-        # ) - (
-        #     torch.maximum(torch.tensor(0), self.prior - n_positive / n)
-        #     * torch.sum(positive * y_unlabeled)
-        #     / n_positive
-        # )
-        # if not self.single_sample:
-        #     positive_risk = self.prior * torch.sum(positive * y_positive) / n_positive
-        #     negative_risk = (
-        #         torch.sum(unlabeled * y_unlabeled) / n_unlabeled
-        #         - self.prior * torch.sum(positive * y_unlabeled) / n_positive
-        #     )
-        # else:
-        #     positive_risk = self.prior * torch.sum(positive * y_positive) / n_positive
-        #     negative_risk = (
-        #         torch.sum(y_unlabeled) / n
-        #         - self.prior * torch.sum(positive * y_unlabeled) / n_positive
-        #     )
-        #     # negative_risk = (
-        #     #     (n_unlabeled / n) * torch.sum(unlabeled * y_unlabeled) / n_unlabeled
-        #     # ) - (
-        #     #     torch.maximum(torch.tensor(0), self.prior - n_positive / n)
-        #     #     * torch.sum(positive * y_unlabeled)
-        #     #     / n_positive
-        #     # )
 
         if self.nnPU and negative_risk < -self.beta:
             return -self.gamma * negative_risk, diagnostic_vals

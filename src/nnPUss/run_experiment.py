@@ -3,22 +3,15 @@ import json
 import os
 import time
 
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import pkbar
-import seaborn as sns
 import torch
-from dataset import SCAR_SS_Labeler
-from early_stopping import EarlyStopping
 from experiment_config import ExperimentConfig
-from loss import _PULoss
 from metric_values import MetricValues
 from model import PUModel
 from sklearn import metrics
 from torch.optim import Adam
-from torch.utils.data import DataLoader, TensorDataset
-from torchvision import transforms
+from torch.utils.data import DataLoader
 
 
 class DictJsonEncoder(json.JSONEncoder):
@@ -40,7 +33,7 @@ class Experiment:
         self.model = PUModel(self.n_inputs)
         self.optimizer = Adam(
             self.model.parameters(),
-            lr=self.experiment_config.learning_rate,
+            lr=self.experiment_config.dataset_config.learning_rate,
             weight_decay=0.005,
         )
 
@@ -51,76 +44,24 @@ class Experiment:
 
         self.model = self.model.to(self.device)
         training_start_time = time.perf_counter()
-        diagnostics = []
-        for epoch in range(self.experiment_config.num_epochs):
+        for epoch in range(self.experiment_config.dataset_config.num_epochs):
             kbar = pkbar.Kbar(
                 target=len(self.train_loader) + 1,
                 epoch=epoch,
-                num_epochs=self.experiment_config.num_epochs,
+                num_epochs=self.experiment_config.dataset_config.num_epochs,
                 width=8,
                 always_stateful=False,
             )
 
-            epoch_diagnostics = self._train(kbar)
-            diagnostics.append(epoch_diagnostics)
-            test_loss = self._test(epoch, kbar)
+            self._train(kbar)
+            self._test(epoch, kbar)
 
         self.training_time = time.perf_counter() - training_start_time
-
-        diagnostic_df = pd.DataFrame.from_records(diagnostics)
-        diagnostic_df["Negative CC component"] = (
-            diagnostic_df["Whole CC"] - diagnostic_df["Correction"]
-        )
-        diagnostic_df["Negative SS component"] = (
-            diagnostic_df["Whole SS"] - diagnostic_df["Correction"]
-        )
-        diagnostic_df["CC loss"] = (
-            diagnostic_df["Positive"] + diagnostic_df["Negative CC component"]
-        )
-        diagnostic_df["SS loss"] = (
-            diagnostic_df["Positive"] + diagnostic_df["Negative SS component"]
-        )
-        sns.set_theme()
-        plt.figure(figsize=(10, 8))
-        sns.lineplot(
-            data=diagnostic_df,
-            dashes=False,
-            markeredgecolor=None,
-            palette={
-                "Positive": sns.color_palette()[0],
-                "Correction": sns.color_palette()[1],
-                "Whole SS": sns.color_palette()[2],
-                "Whole CC": sns.color_palette()[3],
-                "Negative SS component": sns.color_palette()[2],
-                "Negative CC component": sns.color_palette()[3],
-                "SS loss": sns.color_palette()[2],
-                "CC loss": sns.color_palette()[3],
-            },
-            markers={
-                "Positive": None,
-                "Correction": None,
-                "Whole SS": None,
-                "Whole CC": None,
-                "Negative SS component": "|",
-                "Negative CC component": "|",
-                "SS loss": "x",
-                "CC loss": "x",
-            },
-        )
-        plt.title(
-            f"{self.experiment_config.PULoss.name} on {self.experiment_config.dataset_config.name}"
-        )
-        model_dir = os.path.join(
-            os.path.dirname(self.experiment_config.metrics_file)
-        )
-        os.makedirs(model_dir, exist_ok=True)
-        plt.savefig(os.path.join(model_dir, f"diagnostic_losses.png"))
-        plt.show()
 
         kbar = pkbar.Kbar(
             target=1,
             epoch=epoch,
-            num_epochs=self.experiment_config.num_epochs,
+            num_epochs=self.experiment_config.dataset_config.num_epochs,
             width=8,
             always_stateful=False,
         )
@@ -135,13 +76,12 @@ class Experiment:
                 "train" if is_train_set else "test"
             ] = self.experiment_config.dataset_config.DatasetClass(
                 self.experiment_config.data_dir,
-                SCAR_SS_Labeler(
-                    positive_labels=self.experiment_config.dataset_config.positive_labels,
-                    label_frequency=self.experiment_config.label_frequency,
-                    NEGATIVE_LABEL=-1,
+                self.experiment_config.dataset_config.PULabelerClass(
+                    label_frequency=self.experiment_config.label_frequency
                 ),
                 train=is_train_set,
                 download=True,
+                random_seed=self.experiment_config.seed,
                 # transform=transforms.Compose(
                 #     [
                 #         transforms.ToTensor(),
@@ -170,34 +110,16 @@ class Experiment:
             shuffle=False,
         )
 
-        x_draw = np.linspace(-5, 5, 100)
-        y_draw = np.linspace(-3, 3, 60)
-        x_mesh, y_mesh = np.meshgrid(x_draw, y_draw)
-        draw_dataset = TensorDataset(
-            torch.cat(
-                [
-                    torch.from_numpy(x_mesh.reshape(-1, 1)).float(),
-                    torch.from_numpy(y_mesh.reshape(-1, 1)).float(),
-                ],
-                axis=1,
-            )
-        )
-        self.draw_loader = DataLoader(
-            draw_dataset,
-            batch_size=self.experiment_config.eval_batch_size,
-            shuffle=False,
-        )
-
     def _train(self, kbar: pkbar.Kbar):
         self.model.train()
         tr_loss = 0
 
-        diagnostics = {
-            "Positive": 0,
-            "Whole CC": 0,
-            "Whole SS": 0,
-            "Correction": 0,
-        }
+        # diagnostics = {
+        #     "Labeled component": 0,
+        #     "Whole distribution component CC": 0,
+        #     "Whole distribution component SS": 0,
+        #     "PU SCAR correction": 0,
+        # }
 
         for batch_idx, (data, target, label) in enumerate(self.train_loader):
             data, label = data.to(self.device), label.to(self.device)
@@ -211,10 +133,10 @@ class Experiment:
             loss.backward()
             self.optimizer.step()
 
-            diagnostics = {
-                loss: diagnostics[loss] + batch_diagnostics[loss]
-                for loss in batch_diagnostics
-            }
+            # diagnostics = {
+            #     loss: diagnostics[loss] + batch_diagnostics[loss]
+            #     for loss in batch_diagnostics
+            # }
 
             y_pred = torch.where(output < 0, -1, 1).to(self.device)
             acc = metrics.accuracy_score(
@@ -222,11 +144,11 @@ class Experiment:
             )
             kbar.update(batch_idx + 1, values=[("loss", loss), ("acc", acc)])
 
-        diagnostics = {
-            loss: (diagnostics[loss] / len(self.train_loader)).detach().cpu().item()
-            for loss in batch_diagnostics
-        }
-        return diagnostics
+        # diagnostics = {
+        #     loss: (diagnostics[loss] / len(self.train_loader)).detach().cpu().item()
+        #     for loss in batch_diagnostics
+        # }
+        # return diagnostics
 
     def _test(self, epoch: int, kbar: pkbar.Kbar, save_metrics: bool = False):
         """Testing"""
@@ -279,60 +201,6 @@ class Experiment:
             with open(self.experiment_config.metrics_file, "w") as f:
                 json.dump(metric_values, f, cls=DictJsonEncoder)
 
-        # import matplotlib.pyplot as plt
-        # import numpy as np
-        # import seaborn as sns
-
-        # sns.set_theme()
-        # plt.figure(figsize=(10, 6))
-        # datas = []
-        # outs = []
-        # with torch.no_grad():
-        #     for (data,) in self.draw_loader:
-        #         data = data.to(self.device)
-        #         output = self.model(data)
-        #         datas.append(data)
-        #         outs.append(output)
-        # data = torch.cat(datas)
-        # output = torch.cat(outs)
-
-        # test_points = torch.cat(test_points).detach().cpu().numpy()
-
-        # plt.contourf(
-        #     data[:, 0].reshape(60, 100).detach().cpu(),
-        #     data[:, 1].reshape(60, 100).detach().cpu(),
-        #     output.reshape(60, 100).detach().cpu(),
-        #     cmap="PuOr",
-        #     levels=10,
-        # )
-        # contour = plt.contour(
-        #     data[:, 0].reshape(60, 100).detach().cpu(),
-        #     data[:, 1].reshape(60, 100).detach().cpu(),
-        #     output.reshape(60, 100).detach().cpu(),
-        #     levels=[0],
-        # )
-        # # plt.colorbar(contour)
-
-        # plt.scatter(
-        #     test_points[:, 0],
-        #     test_points[:, 1],
-        #     s=3,
-        #     c=np.where(targets == 1, "b", "r"),
-        #     edgecolors="black",
-        #     linewidths=0.1
-        #     # c=test_targets,
-        #     # alpha=0.5,
-        # )
-        # plt.xlim(-5, 5)
-        # plt.ylim(-3, 3)
-        # fig_dir = os.path.join(
-        #     os.path.dirname(self.experiment_config.metrics_file), "vis"
-        # )
-        # os.makedirs(fig_dir, exist_ok=True)
-        # plt.savefig(os.path.join(fig_dir, f"{epoch}.png"))
-        # plt.show()
-        # plt.close()
-
         return test_loss
 
     def _calculate_metrics(self, test_loss, targets, preds):
@@ -351,7 +219,7 @@ class Experiment:
             auc=metrics.roc_auc_score(y_true, y_pred),
             loss=test_loss,
             # stopping_epoch=self.early_stopping_epoch,
-            stopping_epoch=self.experiment_config.num_epochs,
+            stopping_epoch=self.experiment_config.dataset_config.num_epochs,
             time=self.training_time,
         )
 
