@@ -94,7 +94,7 @@ class Experiment:
         self.prior = train_set.get_prior()
         self.train_loader = DataLoader(
             train_set,
-            batch_size=self.experiment_config.train_batch_size,
+            batch_size=self.experiment_config.dataset_config.train_batch_size,
             shuffle=True,
             # num_workers=6,
             # prefetch_factor=6,
@@ -106,7 +106,7 @@ class Experiment:
         test_set = data["test"]
         self.test_loader = DataLoader(
             test_set,
-            batch_size=self.experiment_config.eval_batch_size,
+            batch_size=self.experiment_config.dataset_config.eval_batch_size,
             shuffle=False,
         )
 

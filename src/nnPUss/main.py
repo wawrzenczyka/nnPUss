@@ -11,17 +11,34 @@ if __name__ == "__main__":
         # for exp_number in range(6, 8):
         # for exp_number in range(8, 10):
         for label_frequency in [
-            0.5,
+            # 0.5,
             # 0.02,
             # 0.1,
             # 0.3,
-            # 0.7,
+            0.7,
         ]:
             for dataset_config in [
                 # DatasetConfigs.MNIST_CC,
                 # DatasetConfigs.MNIST_SS,
-                DatasetConfigs.TwentyNews_CC,
-                DatasetConfigs.TwentyNews_SS,
+                DatasetConfigs.FashionMNIST_CC,
+                DatasetConfigs.FashionMNIST_SS,
+                # DatasetConfigs.CIFAR_CC,
+                # DatasetConfigs.CIFAR_SS,
+                # DatasetConfigs.DogFood_CC,
+                # DatasetConfigs.DogFood_SS,
+                # DatasetConfigs.Snacks_CC,
+                # DatasetConfigs.Snacks_SS,
+                # DatasetConfigs.ChestXRay_CC,
+                # DatasetConfigs.ChestXRay_SS,
+                # DatasetConfigs.Beans_CC,
+                # DatasetConfigs.Beans_SS,
+                # DatasetConfigs.EuroSAT_CC,
+                # DatasetConfigs.EuroSAT_SS,
+                # DatasetConfigs.OxfordPets_CC,
+                # DatasetConfigs.OxfordPets_SS,
+                # //
+                # DatasetConfigs.TwentyNews_CC,
+                # DatasetConfigs.TwentyNews_SS,
                 # DatasetConfigs.IMDB_CC,
                 # DatasetConfigs.IMDB_SS,
                 # DatasetConfigs.HateSpeech_CC,
@@ -30,6 +47,7 @@ if __name__ == "__main__":
                 # DatasetConfigs.SMSSpam_SS,
                 # DatasetConfigs.PoemSentiment_CC,
                 # DatasetConfigs.PoemSentiment_SS,
+                # //
                 # DatasetConfigs.TB_Credit_CC,
                 # DatasetConfigs.TB_Credit_SS,
                 # DatasetConfigs.TB_California_CC,
@@ -41,7 +59,7 @@ if __name__ == "__main__":
             ]:
                 for PULoss in [
                     nnPUssLoss,
-                    # nnPUccLoss,
+                    nnPUccLoss,
                     # uPUssLoss,
                     # uPUccLoss,
                 ]:

@@ -8,8 +8,9 @@ import torch
 from datasets import load_dataset
 from sentence_transformers import SentenceTransformer
 from sklearn.preprocessing import StandardScaler
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import Dataset, random_split
 from torchvision.datasets import MNIST
+from transformers import AutoImageProcessor, SwiftFormerModel
 
 
 class BinaryTargetTransformer:
@@ -222,7 +223,7 @@ class DatasetSplitterMixin:
             random_seed is not None
         ), "random_seed is necessary for a valid train / test split, please provide it"
 
-        n_train = int(test_ratio * len(dataset))
+        n_train = int((1 - test_ratio) * len(dataset))
         n_test = len(dataset) - n_train
 
         generator = torch.Generator().manual_seed(random_seed)
@@ -233,110 +234,6 @@ class DatasetSplitterMixin:
         if split_type == "train":
             return train_idx.indices
         return test_idx.indices
-
-
-# class MNIST_PU_SS_Joined(SingleSampleDataset, MNIST):
-#     def __init__(
-#         self,
-#         root,
-#         scar_labeler: SCAR_SS_Labeler,
-#         train=True,
-#         transform=None,
-#         target_transform=None,
-#         download=False,
-#         random_seed=42,
-#     ):
-#         SingleSampleDataset.__init__(
-#             self,
-#             pu_labeler=scar_labeler,
-#             train=train,
-#         )
-
-#         self.transform = transform
-#         self.target_transform = target_transform
-#         self.train = train
-
-#         train_mnist = MNIST(
-#             root,
-#             train=True,
-#             transform=transform,
-#             target_transform=target_transform,
-#             download=download,
-#         )
-#         test_mnist = MNIST(
-#             root,
-#             train=False,
-#             transform=transform,
-#             target_transform=target_transform,
-#             download=download,
-#         )
-#         self.data = torch.cat([train_mnist.data, test_mnist.data])
-#         self.targets = torch.cat([train_mnist.targets, test_mnist.targets])
-
-#         generator = torch.Generator().manual_seed(random_seed)
-#         train_idx, test_idx = random_split(
-#             range(len(self.targets)), [60_000, 10_000], generator=generator
-#         )
-#         if train:
-#             self.data = self.data[train_idx]
-#             self.targets = self.targets[train_idx]
-#         else:
-#             self.data = self.data[test_idx]
-#             self.targets = self.targets[test_idx]
-
-#         self._convert_labels_to_pu()
-
-
-# class MNIST_PU_CC_Joined(CaseControlDatasetMixin, MNIST):
-#     def __init__(
-#         self,
-#         root,
-#         scar_labeler: SCAR_SS_Labeler,
-#         train=True,
-#         transform=None,
-#         target_transform=None,
-#         download=False,
-#         random_seed=42,
-#     ):
-#         CaseControlDatasetMixin.__init__(
-#             self,
-#             pu_labeler=scar_labeler,
-#             train=train,
-#         )
-
-#         self.transform = transform
-#         self.target_transform = target_transform
-#         self.train = train
-
-#         train_mnist = MNIST(
-#             root,
-#             train=True,
-#             transform=transform,
-#             target_transform=target_transform,
-#             download=download,
-#         )
-#         test_mnist = MNIST(
-#             root,
-#             train=False,
-#             transform=transform,
-#             target_transform=target_transform,
-#             download=download,
-#         )
-#         self.data = torch.cat([train_mnist.data, test_mnist.data])
-#         self.targets = torch.cat([train_mnist.targets, test_mnist.targets])
-
-#         generator = torch.Generator().manual_seed(random_seed)
-#         train_idx, test_idx = random_split(
-#             range(len(self.targets)), [60_000, 10_000], generator=generator
-#         )
-#         if train:
-#             self.data = self.data[train_idx]
-#             self.targets = self.targets[train_idx]
-#         else:
-#             self.data = self.data[test_idx]
-#             self.targets = self.targets[test_idx]
-
-#         self._convert_labels_to_pu()
 
 
 class SentenceTransformersDataset(Dataset):
@@ -562,53 +459,6 @@ class PoemSentiment_PU(PUDatasetBase, SentenceTransformersDataset):
         self.target_transformer = target_transformer
         self.pu_labeler = pu_labeler
         self._convert_to_pu_data()
-
-
-# class SyntheticDataset(Dataset):
-#     def __init__(
-#         self,
-#         root,
-#         train=True,
-#         transform=None,
-#         target_transform=None,
-#         download=True,  # ignored
-#         size=1000,
-#         random_seed=42,
-#     ):
-#         self.transform = transform
-#         self.target_transform = target_transform
-
-#         if not train:
-#             random_seed = random_seed + 42
-#         generator = torch.Generator().manual_seed(random_seed)
-
-#         n_pos = int(0.8 * size)
-#         X_pos = torch.randn((n_pos, 2), generator=generator) + torch.tensor([[2, 0]])
-#         X_neg = torch.randn((size - n_pos, 2), generator=generator) + torch.tensor(
-#             [[-2, 0]]
-#         )
-
-#         X = torch.cat([X_pos, X_neg])
-#         y = torch.cat([torch.ones(len(X_pos)), torch.zeros(len(X_neg))])
-
-#         self.data, self.targets = X, y
-
-#     def __len__(self):
-#         # if self.train:
-#         return len(self.targets)
-
-#     def __getitem__(self, idx):
-#         # return super().__getitem__(idx)
-#         data, target = self.data[idx], self.targets[idx]
-
-#         if self.transform is not None:
-#             data = self.transform(data.numpy().reshape(1, *data.shape)).reshape(
-#                 *data.shape
-#             )
-#         if self.target_transform is not None:
-#             target = self.transform(target)
-
-#         return data.numpy(), target
 
 
 class TabularBenchmarkDataset(DatasetSplitterMixin, Dataset):
@@ -853,116 +703,320 @@ class TBCovertype_PU(TabularBenchmark_PU):
         )
 
 
-# class ImageDataset(Dataset):
-#     def __init__(
-#         self,
-#         root,
-#         dataset_name,
-#         train=True,
-#         transform=None,
-#         target_transform=None,
-#         download=True,  # ignored
-#         random_seed=None,
-#     ):
-#         dataset = load_dataset(
-#             "polinaeterna/tabular-benchmark",
-#             data_files=f"clf_num/{dataset_name}.csv",
-#             cache_dir=os.path.join(root, dataset_name),
-#         )
-#         self.dataset = dataset
-
-#         self.transform = transform
-#         self.target_transform = target_transform
-
-from torchvision.transforms import Compose, Resize, ToTensor
-
-
-class Snacks_PU(PUDatasetBase):
+class ImageEmbeddingDataset(DatasetSplitterMixin, PUDatasetBase):
     def __init__(
         self,
         root,
+        dataset_hub_path,
         dataset_name,
+        pu_labeler: PULabeler,
+        target_transformer: BinaryTargetTransformer,
+        image_col="img",
+        label_col="label",
+        train=True,
+        download=True,  # ignored
+        random_seed=None,
+        dataset_hub_subset=None,
+        image_preprocessing_fun=None,
+        manually_split_dataset=False,
+    ):
+        dataset = load_dataset(
+            dataset_hub_path,
+            dataset_hub_subset,
+            cache_dir=os.path.join(root, dataset_name),
+        )
+
+        self.train = train
+        if not manually_split_dataset:
+            if self.train:
+                dataset = dataset["train"]
+            else:
+                dataset = dataset["test"]
+        else:
+            dataset = dataset["train"]
+            if self.train:
+                split_name = "train"
+            else:
+                split_name = "test"
+            idx = self.get_split_idx(dataset, split_name, random_seed=random_seed)
+            dataset = dataset.select(idx)
+
+        def transforms(examples):
+            image_processor = AutoImageProcessor.from_pretrained(
+                "MBZUAI/swiftformer-xs"
+            )
+            model = SwiftFormerModel.from_pretrained("MBZUAI/swiftformer-xs")
+
+            embeddings = []
+            for img in examples[image_col]:
+                if image_preprocessing_fun:
+                    img = image_preprocessing_fun(img)
+
+                inputs = image_processor(img, return_tensors="pt")
+
+                with torch.no_grad():
+                    outputs = model(**inputs)
+
+                last_hidden_states = outputs.last_hidden_state
+                embeddings.append(last_hidden_states.reshape(-1))
+            examples["data"] = embeddings
+            return examples
+
+        dataset = dataset.map(transforms, remove_columns=[image_col], batched=True)
+        self.data = torch.tensor(dataset["data"])
+        self.targets = torch.tensor(dataset[label_col])
+        if self.targets.dtype == torch.bool:
+            self.targets = torch.where(self.targets == True, 1, 0)
+
+        self.target_transformer = target_transformer
+        self.pu_labeler = pu_labeler
+        self._convert_to_pu_data()
+
+
+class CIFAR_PU(ImageEmbeddingDataset):
+    def __init__(
+        self,
+        root,
+        pu_labeler: PULabeler,
+        target_transformer: BinaryTargetTransformer = BinaryTargetTransformer(
+            included_classes=np.arange(10),
+            positive_classes=[2, 3, 4, 5, 6, 7],
+        ),
+        train=True,
+        download=True,  # ignored
+        random_seed=None,
+    ):
+        super().__init__(
+            root=root,
+            dataset_hub_path="cifar10",
+            dataset_name="CIFAR",
+            pu_labeler=pu_labeler,
+            target_transformer=target_transformer,
+            image_col="img",
+            label_col="label",
+            train=train,
+            download=download,
+            random_seed=random_seed,
+        )
+
+
+class DogFood_PU(ImageEmbeddingDataset):
+    def __init__(
+        self,
+        root,
+        pu_labeler: PULabeler,
+        target_transformer: BinaryTargetTransformer = BinaryTargetTransformer(
+            included_classes=np.arange(3),
+            positive_classes=[1],
+        ),
+        train=True,
+        download=True,  # ignored
+        random_seed=None,
+    ):
+        super().__init__(
+            root=root,
+            dataset_hub_path="lewtun/dog_food",
+            dataset_name="DogFood",
+            pu_labeler=pu_labeler,
+            target_transformer=target_transformer,
+            image_col="image",
+            label_col="label",
+            train=train,
+            download=download,
+            random_seed=random_seed,
+        )
+
+
+class Snacks_PU(ImageEmbeddingDataset):
+    def __init__(
+        self,
+        root,
         pu_labeler: PULabeler,
         target_transformer: BinaryTargetTransformer = BinaryTargetTransformer(
             included_classes=np.arange(20),
             positive_classes=[0, 1, 4, 7, 12, 13, 17, 19],
         ),
         train=True,
-        transform=None,
-        target_transform=None,
         download=True,  # ignored
         random_seed=None,
     ):
-        dataset = load_dataset(
-            "Matthijs/snacks",
-            cache_dir=os.path.join(root, dataset_name),
+        super().__init__(
+            root=root,
+            dataset_hub_path="Matthijs/snacks",
+            dataset_name="Snacks",
+            pu_labeler=pu_labeler,
+            target_transformer=target_transformer,
+            image_col="image",
+            label_col="label",
+            train=train,
+            download=download,
+            random_seed=random_seed,
         )
 
-        self.train = train
-        if self.train:
-            dataset = dataset["train"]
-        else:
-            dataset = dataset["test"]
 
-        def transforms(examples):
-            examples["data"] = [
-                np.array(
-                    image.convert("RGB").resize((224, 224)),
-                )
-                / 255.0
-                for image in examples["image"]
-            ]
-            return examples
-
-        dataset = dataset.map(transforms, remove_columns=["image"], batched=True)
-        self.data = dataset
-        self.targets = torch.tensor(dataset["label"])
-
-        self.target_transformer = target_transformer
-        self.pu_labeler = pu_labeler
-        self._convert_to_pu_data()
-
-    def __getitem__(self, idx):
-        input = self.data[idx]["data"]
-        target = self.binary_targets[idx]
-        label = self.pu_targets[idx]
-        return input, target, label
+class MNIST_PU(ImageEmbeddingDataset):
+    def __init__(
+        self,
+        root,
+        pu_labeler: PULabeler,
+        target_transformer: BinaryTargetTransformer = BinaryTargetTransformer(
+            included_classes=np.arange(10),
+            positive_classes=[1, 3, 5, 7, 9],
+        ),
+        train=True,
+        download=True,  # ignored
+        random_seed=None,
+    ):
+        super().__init__(
+            root=root,
+            dataset_hub_path="mnist",
+            dataset_name="MNIST",
+            pu_labeler=pu_labeler,
+            target_transformer=target_transformer,
+            image_col="image",
+            label_col="label",
+            train=train,
+            download=download,
+            random_seed=random_seed,
+            image_preprocessing_fun=lambda img: img.convert("RGB"),
+        )
 
 
-# class DogFood_PU(PUDatasetBase):
-#     def __init__(
-#         self,
-#         root,
-#         dataset_name,
-#         pu_labeler: PULabeler,
-#         target_transformer: BinaryTargetTransformer = BinaryTargetTransformer(
-#             included_classes=np.arange(20),
-#             positive_classes=[0, 1, 4, 7, 12, 13, 17, 19],
-#         ),
-#         train=True,
-#         transform=None,
-#         target_transform=None,
-#         download=True,  # ignored
-#         random_seed=None,
-#     ):
-#         dataset = load_dataset(
-#             "lewtun/dog_food",
-#             cache_dir=os.path.join(root, dataset_name),
-#         )
-
-#         self.train = train
-#         if self.train:
-#             dataset = dataset["train"]
-#         else:
-#             dataset = dataset["test"]
-
-#         self.data = [np.array(img) / 255.0 for img in dataset["image"]]
-#         self.targets = torch.tensor(dataset["label"])
-
-#         self.target_transformer = target_transformer
-#         self.pu_labeler = pu_labeler
-#         self._convert_to_pu_data()
+class FashionMNIST_PU(ImageEmbeddingDataset):
+    def __init__(
+        self,
+        root,
+        pu_labeler: PULabeler,
+        target_transformer: BinaryTargetTransformer = BinaryTargetTransformer(
+            included_classes=np.arange(10),
+            positive_classes=[0, 2, 3, 4, 6],
+        ),
+        train=True,
+        download=True,  # ignored
+        random_seed=None,
+    ):
+        super().__init__(
+            root=root,
+            dataset_hub_path="fashion_mnist",
+            dataset_name="Fashion MNIST",
+            pu_labeler=pu_labeler,
+            target_transformer=target_transformer,
+            image_col="image",
+            label_col="label",
+            train=train,
+            download=download,
+            random_seed=random_seed,
+            image_preprocessing_fun=lambda img: img.convert("RGB"),
+        )
 
 
-# dataset = Snacks_PU("data", "Snacks", SCAR_SS_Labeler(0.5))
-# dataset
+class ChestXRay_PU(ImageEmbeddingDataset):
+    def __init__(
+        self,
+        root,
+        pu_labeler: PULabeler,
+        target_transformer: BinaryTargetTransformer = BinaryTargetTransformer(
+            included_classes=np.arange(2),
+            positive_classes=[1],
+        ),
+        train=True,
+        download=True,  # ignored
+        random_seed=None,
+    ):
+        super().__init__(
+            root=root,
+            dataset_hub_path="keremberke/chest-xray-classification",
+            dataset_name="Chest X-ray",
+            dataset_hub_subset="full",
+            pu_labeler=pu_labeler,
+            target_transformer=target_transformer,
+            image_col="image",
+            label_col="labels",
+            train=train,
+            download=download,
+            random_seed=random_seed,
+        )
+
+
+class Beans_PU(ImageEmbeddingDataset):
+    def __init__(
+        self,
+        root,
+        pu_labeler: PULabeler,
+        target_transformer: BinaryTargetTransformer = BinaryTargetTransformer(
+            included_classes=np.arange(3),
+            positive_classes=[2],
+        ),
+        train=True,
+        download=True,  # ignored
+        random_seed=None,
+    ):
+        super().__init__(
+            root=root,
+            dataset_hub_path="beans",
+            dataset_name="Beans",
+            pu_labeler=pu_labeler,
+            target_transformer=target_transformer,
+            image_col="image",
+            label_col="labels",
+            train=train,
+            download=download,
+            random_seed=random_seed,
+        )
+
+
+class OxfordPets_PU(ImageEmbeddingDataset):
+    def __init__(
+        self,
+        root,
+        pu_labeler: PULabeler,
+        target_transformer: BinaryTargetTransformer = BinaryTargetTransformer(
+            included_classes=np.arange(2),
+            positive_classes=[0],
+        ),
+        train=True,
+        download=True,  # ignored
+        random_seed=None,
+    ):
+        super().__init__(
+            root=root,
+            dataset_hub_path="pcuenq/oxford-pets",
+            dataset_name="Oxford Pets",
+            pu_labeler=pu_labeler,
+            target_transformer=target_transformer,
+            image_col="image",
+            label_col="dog",
+            train=True,  # no test split defined
+            download=download,
+            random_seed=random_seed,
+            manually_split_dataset=True,
+            image_preprocessing_fun=lambda img: img.convert("RGB"),
+        )
+
+
+class EuroSAT_PU(ImageEmbeddingDataset):
+    def __init__(
+        self,
+        root,
+        pu_labeler: PULabeler,
+        target_transformer: BinaryTargetTransformer = BinaryTargetTransformer(
+            included_classes=np.arange(10),
+            positive_classes=[3, 4, 7],  # Highway, Industrial, Residential
+        ),
+        train=True,
+        download=True,  # ignored
+        random_seed=None,
+    ):
+        super().__init__(
+            root=root,
+            dataset_hub_path="Ryukijano/eurosat",
+            dataset_name="EuroSAT",
+            pu_labeler=pu_labeler,
+            target_transformer=target_transformer,
+            image_col="image",
+            label_col="label",
+            train=train,
+            download=download,
+            random_seed=random_seed,
+            manually_split_dataset=True,
+        )

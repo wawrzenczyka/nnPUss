@@ -22,7 +22,7 @@ display(results_df)
 # %%
 for metric in ["accuracy", "precision", "recall", "f1"]:
     df = (
-        results_df[results_df.dataset.str.contains("CC")].pivot_table(
+        results_df[results_df.dataset.str.contains(" CC")].pivot_table(
             values=metric, index=["dataset", "label_frequency"], columns="model"
         )
         * 100
@@ -37,7 +37,7 @@ for metric in ["accuracy", "precision", "recall", "f1"]:
 # %%
 for metric in ["accuracy", "precision", "recall", "f1"]:
     df = (
-        results_df[results_df.dataset.str.contains("SS")].pivot_table(
+        results_df[results_df.dataset.str.contains(" SS")].pivot_table(
             values=metric, index=["dataset", "label_frequency"], columns="model"
         )
         * 100
