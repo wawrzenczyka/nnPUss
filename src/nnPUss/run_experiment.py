@@ -2,11 +2,14 @@
 import json
 import os
 import time
+from typing import Type
 
+import mlflow
 import numpy as np
 import pkbar
 import torch
 from experiment_config import ExperimentConfig
+from loss import _PULoss
 from metric_values import MetricValues
 from model import PUModel
 from sklearn import metrics
@@ -16,12 +19,15 @@ from torch.utils.data import DataLoader
 
 class DictJsonEncoder(json.JSONEncoder):
     def default(self, o):
+        if isinstance(o, Type):
+            return o.__module__ + "." + o.__class__.__name__
         return o.__dict__
 
 
 class Experiment:
     def __init__(self, experiment_config: ExperimentConfig) -> None:
         self.experiment_config = experiment_config
+        self.prepare_experiment(experiment_config)
 
         use_cuda = not self.experiment_config.force_cpu and torch.cuda.is_available()
         self.device = torch.device("cuda" if use_cuda else "cpu")
@@ -37,35 +43,51 @@ class Experiment:
             weight_decay=0.005,
         )
 
+    def prepare_experiment(self, experiment_config: ExperimentConfig):
+        experiment_name = experiment_config.dataset_config.name
+
+        experiments = mlflow.search_experiments(
+            filter_string=f"name = '{experiment_name}'", max_results=1
+        )
+        if len(experiments) == 0:
+            id = mlflow.create_experiment(experiment_name)
+            self.experiment = mlflow.get_experiment(id)
+        else:
+            self.experiment = experiments[0]
+
     def run(self):
-        os.makedirs(self.experiment_config.output_dir, exist_ok=True)
+        with mlflow.start_run(experiment_id=self.experiment.experiment_id):
+            mlflow.log_params(
+                json.loads(json.dumps(self.experiment_config, cls=DictJsonEncoder))
+            )
+            os.makedirs(self.experiment_config.output_dir, exist_ok=True)
 
-        self._set_seed()
+            self._set_seed()
 
-        self.model = self.model.to(self.device)
-        training_start_time = time.perf_counter()
-        for epoch in range(self.experiment_config.dataset_config.num_epochs):
+            self.model = self.model.to(self.device)
+            training_start_time = time.perf_counter()
+            for epoch in range(self.experiment_config.dataset_config.num_epochs):
+                kbar = pkbar.Kbar(
+                    target=len(self.train_loader) + 1,
+                    epoch=epoch,
+                    num_epochs=self.experiment_config.dataset_config.num_epochs,
+                    width=8,
+                    always_stateful=False,
+                )
+
+                self._train(epoch, kbar)
+                self._test(epoch, kbar)
+
+            self.training_time = time.perf_counter() - training_start_time
+
             kbar = pkbar.Kbar(
-                target=len(self.train_loader) + 1,
+                target=1,
                 epoch=epoch,
                 num_epochs=self.experiment_config.dataset_config.num_epochs,
                 width=8,
                 always_stateful=False,
             )
-
-            self._train(kbar)
-            self._test(epoch, kbar)
-
-        self.training_time = time.perf_counter() - training_start_time
-
-        kbar = pkbar.Kbar(
-            target=1,
-            epoch=epoch,
-            num_epochs=self.experiment_config.dataset_config.num_epochs,
-            width=8,
-            always_stateful=False,
-        )
-        self._test(epoch, kbar, save_metrics=True)
+            self._test(epoch, kbar, save_metrics=True)
 
     def _prepare_data(self):
         self._set_seed()
@@ -82,12 +104,6 @@ class Experiment:
                 train=is_train_set,
                 download=True,
                 random_seed=self.experiment_config.seed,
-                # transform=transforms.Compose(
-                #     [
-                #         transforms.ToTensor(),
-                #         # self.experiment_config.dataset_config.normalization,
-                #     ]
-                # ),
             )
 
         train_set = data["train"]
@@ -96,10 +112,6 @@ class Experiment:
             train_set,
             batch_size=self.experiment_config.dataset_config.train_batch_size,
             shuffle=True,
-            # num_workers=6,
-            # prefetch_factor=6,
-            # pin_memory=True,
-            # persistent_workers=True,
         )
         self.n_inputs = len(next(iter(train_set))[0].reshape(-1))
 
@@ -110,45 +122,35 @@ class Experiment:
             shuffle=False,
         )
 
-    def _train(self, kbar: pkbar.Kbar):
+    def _train(self, epoch: int, kbar: pkbar.Kbar):
         self.model.train()
         tr_loss = 0
 
-        # diagnostics = {
-        #     "Labeled component": 0,
-        #     "Whole distribution component CC": 0,
-        #     "Whole distribution component SS": 0,
-        #     "PU SCAR correction": 0,
-        # }
+        loss_fct = self.experiment_config.PULoss(prior=self.prior)
 
         for batch_idx, (data, target, label) in enumerate(self.train_loader):
             data, label = data.to(self.device), label.to(self.device)
             self.optimizer.zero_grad()
             output = self.model(data)
 
-            loss_fct = self.experiment_config.PULoss(prior=self.prior)
-
-            loss, batch_diagnostics = loss_fct(output.view(-1), label.type(torch.float))
+            loss = loss_fct(output.view(-1), label.type(torch.float))
             tr_loss += loss.item()
             loss.backward()
             self.optimizer.step()
-
-            # diagnostics = {
-            #     loss: diagnostics[loss] + batch_diagnostics[loss]
-            #     for loss in batch_diagnostics
-            # }
 
             y_pred = torch.where(output < 0, -1, 1).to(self.device)
             acc = metrics.accuracy_score(
                 target.cpu().numpy().reshape(-1), y_pred.cpu().numpy().reshape(-1)
             )
-            kbar.update(batch_idx + 1, values=[("loss", loss), ("acc", acc)])
+            kbar.update(
+                batch_idx + 1, values=[("train_loss", loss), ("train_acc", acc)]
+            )
 
-        # diagnostics = {
-        #     loss: (diagnostics[loss] / len(self.train_loader)).detach().cpu().item()
-        #     for loss in batch_diagnostics
-        # }
-        # return diagnostics
+        train_metrics = {k: np.mean(v) for k, v in kbar._values.items()}
+        loss_components = {k: np.mean(v) for k, v in loss_fct.history.items()}
+
+        mlflow.log_metrics(train_metrics, step=epoch)
+        mlflow.log_metrics(loss_components, step=epoch)
 
     def _test(self, epoch: int, kbar: pkbar.Kbar, save_metrics: bool = False):
         """Testing"""
@@ -160,15 +162,17 @@ class Experiment:
         test_points = []
         targets = []
         preds = []
+
+        test_loss_func = self.experiment_config.PULoss(prior=self.prior)
+
         with torch.no_grad():
             for data, target, _ in self.test_loader:
                 data, target = data.to(self.device), target.to(self.device)
                 output = self.model(data)
 
-                test_loss_func = self.experiment_config.PULoss(prior=self.prior)
-                test_loss += test_loss_func(output.view(-1), target.type(torch.float))[
-                    0
-                ].item()  # sum up batch loss
+                test_loss += test_loss_func(
+                    output.view(-1), target.type(torch.float)
+                ).item()  # sum up batch loss
                 pred = torch.where(
                     output < 0,
                     torch.tensor(-1, device=self.device),
@@ -195,8 +199,17 @@ class Experiment:
         targets = torch.cat(targets).detach().cpu().numpy()
         preds = torch.cat(preds).detach().cpu().numpy()
 
+        metric_values = self._calculate_metrics(test_loss, targets, preds)
+
         if save_metrics:
-            metric_values = self._calculate_metrics(test_loss, targets, preds)
+            numeric_metrics = {
+                k: np.mean(v)
+                for k, v in json.loads(
+                    json.dumps(metric_values, cls=DictJsonEncoder)
+                ).items()
+                if type(v) != str
+            }
+            mlflow.log_metrics(numeric_metrics)
 
             with open(self.experiment_config.metrics_file, "w") as f:
                 json.dump(metric_values, f, cls=DictJsonEncoder)
@@ -220,7 +233,7 @@ class Experiment:
             loss=test_loss,
             # stopping_epoch=self.early_stopping_epoch,
             stopping_epoch=self.experiment_config.dataset_config.num_epochs,
-            time=self.training_time,
+            time=self.training_time if hasattr(self, "training_time") else None,
         )
 
         return metric_values
