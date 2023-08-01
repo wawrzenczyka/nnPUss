@@ -4,6 +4,7 @@ import os
 import time
 
 import numpy as np
+import pandas as pd
 import pkbar
 import torch
 from experiment_config import ExperimentConfig
@@ -42,6 +43,7 @@ class Experiment:
 
         self._set_seed()
 
+        loss_details_history = []
         self.model = self.model.to(self.device)
         training_start_time = time.perf_counter()
         for epoch in range(self.experiment_config.dataset_config.num_epochs):
@@ -53,8 +55,15 @@ class Experiment:
                 always_stateful=False,
             )
 
-            self._train(kbar)
+            loss_details = self._train(kbar)
+            loss_details["Epoch"] = epoch
+            loss_details_history.append(loss_details)
             self._test(epoch, kbar)
+
+        pd.DataFrame.from_records(loss_details_history).to_csv(
+            os.path.join(self.experiment_config.output_dir, "loss-history.csv"),
+            index=False,
+        )
 
         self.training_time = time.perf_counter() - training_start_time
 
@@ -114,29 +123,16 @@ class Experiment:
         self.model.train()
         tr_loss = 0
 
-        # diagnostics = {
-        #     "Labeled component": 0,
-        #     "Whole distribution component CC": 0,
-        #     "Whole distribution component SS": 0,
-        #     "PU SCAR correction": 0,
-        # }
-
+        loss_fct = self.experiment_config.PULoss(prior=self.prior)
         for batch_idx, (data, target, label) in enumerate(self.train_loader):
             data, label = data.to(self.device), label.to(self.device)
             self.optimizer.zero_grad()
             output = self.model(data)
 
-            loss_fct = self.experiment_config.PULoss(prior=self.prior)
-
-            loss, batch_diagnostics = loss_fct(output.view(-1), label.type(torch.float))
+            loss = loss_fct(output.view(-1), label.type(torch.float))
             tr_loss += loss.item()
             loss.backward()
             self.optimizer.step()
-
-            # diagnostics = {
-            #     loss: diagnostics[loss] + batch_diagnostics[loss]
-            #     for loss in batch_diagnostics
-            # }
 
             y_pred = torch.where(output < 0, -1, 1).to(self.device)
             acc = metrics.accuracy_score(
@@ -144,11 +140,9 @@ class Experiment:
             )
             kbar.update(batch_idx + 1, values=[("loss", loss), ("acc", acc)])
 
-        # diagnostics = {
-        #     loss: (diagnostics[loss] / len(self.train_loader)).detach().cpu().item()
-        #     for loss in batch_diagnostics
-        # }
-        # return diagnostics
+        history = loss_fct.history
+        history_means = {k: np.mean(v) for k, v in history.items()}
+        return history_means
 
     def _test(self, epoch: int, kbar: pkbar.Kbar, save_metrics: bool = False):
         """Testing"""
@@ -161,14 +155,14 @@ class Experiment:
         targets = []
         preds = []
         with torch.no_grad():
+            test_loss_func = self.experiment_config.PULoss(prior=self.prior)
             for data, target, _ in self.test_loader:
                 data, target = data.to(self.device), target.to(self.device)
                 output = self.model(data)
 
-                test_loss_func = self.experiment_config.PULoss(prior=self.prior)
-                test_loss += test_loss_func(output.view(-1), target.type(torch.float))[
-                    0
-                ].item()  # sum up batch loss
+                test_loss += test_loss_func(
+                    output.view(-1), target.type(torch.float)
+                ).item()  # sum up batch loss
                 pred = torch.where(
                     output < 0,
                     torch.tensor(-1, device=self.device),

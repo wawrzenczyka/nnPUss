@@ -27,6 +27,22 @@ class _PULoss(nn.Module):
         self.unlabeled = -1
         self.min_count = torch.tensor(1.0)
 
+        self.labeled_component_history = []
+        self.whole_distribution_cc_component_history = []
+        self.whole_distribution_ss_component_history = []
+        self.pu_scar_correction_component_history = []
+        self.calculated_loss_history = []
+
+    @property
+    def history(self):
+        return {
+            "Labeled component": self.labeled_component_history,
+            "Whole distribution component CC": self.whole_distribution_cc_component_history,
+            "Whole distribution component SS": self.whole_distribution_ss_component_history,
+            "PU SCAR correction": self.pu_scar_correction_component_history,
+            "Calculated loss": self.calculated_loss_history,
+        }
+
     def forward(self, x, target, test=False):
         assert x.shape == target.shape
         positive, unlabeled = target == self.positive, target == self.unlabeled
@@ -52,17 +68,38 @@ class _PULoss(nn.Module):
         else:
             negative_risk = negative_risk_c1_ss - negative_risk_c2
 
-        diagnostic_vals = {
-            "Labeled component": 0,
-            "Whole distribution component CC": 0,
-            "Whole distribution component SS": 0,
-            "PU SCAR correction": 0,
-        }
-
         if self.nnPU and negative_risk < -self.beta:
-            return -self.gamma * negative_risk, diagnostic_vals
+            loss = -self.gamma * negative_risk
         else:
-            return positive_risk + negative_risk, diagnostic_vals
+            loss = positive_risk + negative_risk
+
+        self._save_history(
+            positive_risk,
+            negative_risk_c1_cc,
+            negative_risk_c1_ss,
+            negative_risk_c2,
+            loss,
+        )
+
+        return loss
+
+    def _save_history(
+        self,
+        positive_risk,
+        negative_risk_c1_cc,
+        negative_risk_c1_ss,
+        negative_risk_c2,
+        loss,
+    ):
+        self.labeled_component_history.append(positive_risk.cpu().item())
+        self.whole_distribution_cc_component_history.append(
+            negative_risk_c1_cc.cpu().item()
+        )
+        self.whole_distribution_ss_component_history.append(
+            negative_risk_c1_ss.cpu().item()
+        )
+        self.pu_scar_correction_component_history.append(negative_risk_c2.cpu().item())
+        self.calculated_loss_history.append(loss.cpu().item())
 
     @property
     @abstractmethod
