@@ -106,8 +106,8 @@ class SCAR_CC_Labeler(PULabeler):
         c = self._label_frequency
         A = 1 / (1 - c + c * self._prior)
 
-        P_samples_num = int(A * c * (self._prior * n))
-        U_samples_num = int(A * (1 - c) * n)
+        P_samples_num = int(np.ceil(A * c * (self._prior * n)))
+        U_samples_num = int(np.ceil(A * (1 - c) * n))
 
         positive_idx = torch.where(y == 1)[0]
         selected_positive_idx = torch.multinomial(
@@ -190,29 +190,29 @@ class PUDatasetBase:
             return None
 
 
-class MNIST_PU(PUDatasetBase, MNIST):
-    def __init__(
-        self,
-        root,
-        pu_labeler: PULabeler,
-        target_transformer: BinaryTargetTransformer = BinaryTargetTransformer(
-            included_classes=np.arange(10), positive_classes=[1, 3, 5, 7, 9]
-        ),
-        train=True,
-        download=False,
-        random_seed=None,
-    ):
-        MNIST.__init__(
-            self,
-            root,
-            train=train,
-            download=download,
-        )
-        self.data = self.data / 255.0
+# class MNIST_PU(PUDatasetBase, MNIST):
+#     def __init__(
+#         self,
+#         root,
+#         pu_labeler: PULabeler,
+#         target_transformer: BinaryTargetTransformer = BinaryTargetTransformer(
+#             included_classes=np.arange(10), positive_classes=[1, 3, 5, 7, 9]
+#         ),
+#         train=True,
+#         download=False,
+#         random_seed=None,
+#     ):
+#         MNIST.__init__(
+#             self,
+#             root,
+#             train=train,
+#             download=download,
+#         )
+#         self.data = self.data / 255.0
 
-        self.target_transformer = target_transformer
-        self.pu_labeler = pu_labeler
-        self._convert_to_pu_data()
+#         self.target_transformer = target_transformer
+#         self.pu_labeler = pu_labeler
+#         self._convert_to_pu_data()
 
 
 class DatasetSplitterMixin:
@@ -745,7 +745,7 @@ class ImageEmbeddingDataset(DatasetSplitterMixin, PUDatasetBase):
             image_processor = AutoImageProcessor.from_pretrained(
                 "MBZUAI/swiftformer-xs"
             )
-            model = SwiftFormerModel.from_pretrained("MBZUAI/swiftformer-xs")
+            model = SwiftFormerModel.from_pretrained("MBZUAI/swiftformer-xs").cuda()
 
             embeddings = []
             for img in examples[image_col]:
@@ -753,12 +753,13 @@ class ImageEmbeddingDataset(DatasetSplitterMixin, PUDatasetBase):
                     img = image_preprocessing_fun(img)
 
                 inputs = image_processor(img, return_tensors="pt")
+                inputs["pixel_values"] = inputs["pixel_values"].cuda()
 
                 with torch.no_grad():
                     outputs = model(**inputs)
 
                 last_hidden_states = outputs.last_hidden_state
-                embeddings.append(last_hidden_states.reshape(-1))
+                embeddings.append(last_hidden_states.reshape(-1).cpu())
             examples["data"] = embeddings
             return examples
 

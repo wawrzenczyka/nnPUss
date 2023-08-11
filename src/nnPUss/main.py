@@ -18,8 +18,8 @@ if __name__ == "__main__":
             0.1,
         ]:
             for dataset_config in [
-                DatasetConfigs.CIFAR_CC,
-                DatasetConfigs.CIFAR_SS,
+                # DatasetConfigs.CIFAR_CC,
+                # DatasetConfigs.CIFAR_SS,
                 # DatasetConfigs.EuroSAT_CC,
                 # DatasetConfigs.EuroSAT_SS,
                 # DatasetConfigs.ChestXRay_CC,
@@ -30,12 +30,12 @@ if __name__ == "__main__":
                 # DatasetConfigs.DogFood_SS,
                 # DatasetConfigs.Beans_CC,
                 # DatasetConfigs.Beans_SS,
+                # DatasetConfigs.OxfordPets_CC,
+                # DatasetConfigs.OxfordPets_SS,
                 # DatasetConfigs.MNIST_CC,
                 # DatasetConfigs.MNIST_SS,
                 # DatasetConfigs.FashionMNIST_CC,
                 # DatasetConfigs.FashionMNIST_SS,
-                # DatasetConfigs.OxfordPets_CC,
-                # DatasetConfigs.OxfordPets_SS,
                 # //
                 # DatasetConfigs.TwentyNews_CC,
                 # DatasetConfigs.TwentyNews_SS,
