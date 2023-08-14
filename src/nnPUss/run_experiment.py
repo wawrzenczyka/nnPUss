@@ -208,7 +208,7 @@ class Experiment:
             exp_number=self.experiment_config.exp_number,
             accuracy=metrics.accuracy_score(y_true, y_pred),
             precision=metrics.precision_score(y_true, y_pred),
-            recall=metrics.precision_score(y_true, y_pred),
+            recall=metrics.recall_score(y_true, y_pred),
             f1=metrics.f1_score(y_true, y_pred),
             auc=metrics.roc_auc_score(y_true, y_pred),
             loss=test_loss,

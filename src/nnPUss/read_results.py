@@ -41,16 +41,16 @@ for metric in ["accuracy", "precision", "recall", "f1"]:
     df["nnPUcc improvement"] = df["nnPUcc"] - df["nnPUss"]
     # df["uPUcc improvement"] = df["uPUcc"] - df["uPUss"]
     df = df.round(2)
-    df.to_csv(f"csv/{metric}-nnPU-CC-datasets.csv")
+    df.to_csv(f"csv/CC-datasets-{metric}.csv")
+    diff_pivot = df.reset_index(drop=False).pivot_table(
+        values="nnPUcc improvement",
+        index="label_frequency",
+        columns="dataset",
+    )
+    diff_pivot.to_csv(f"csv/CC-datasets-{metric}-diff-pivot.csv")
     if metric in ["accuracy"]:
         display(df)
-        display(
-            df.reset_index(drop=False).pivot_table(
-                values="nnPUcc improvement",
-                index="label_frequency",
-                columns="dataset",
-            )
-        )
+        display(diff_pivot)
 
 # %%
 for metric in ["accuracy", "precision", "recall", "f1"]:
@@ -63,16 +63,16 @@ for metric in ["accuracy", "precision", "recall", "f1"]:
     df["nnPUss improvement"] = df["nnPUss"] - df["nnPUcc"]
     # df["uPUss improvement"] = df["uPUss"] - df["uPUcc"]
     df = df.round(2)
-    df.to_csv(f"csv/{metric}-nnPU-SS-datasets.csv")
+    df.to_csv(f"csv/SS-datasets-{metric}.csv")
+    diff_pivot = df.reset_index(drop=False).pivot_table(
+        values="nnPUss improvement",
+        index="label_frequency",
+        columns="dataset",
+    )
+    diff_pivot.to_csv(f"csv/SS-datasets-{metric}-diff-pivot.csv")
     if metric in ["accuracy"]:
         display(df)
-        display(
-            df.reset_index(drop=False).pivot_table(
-                values="nnPUss improvement",
-                index="label_frequency",
-                columns="dataset",
-            )
-        )
+        display(diff_pivot)
 
 
 # %%
@@ -83,3 +83,23 @@ results_df[
 ]
 
 # %%
+sizes = {
+    "[IMG] Beans SS": 1034,
+    "[IMG] CIFAR SS": 60000,
+    "[IMG] Chest X-ray SS": 4077,
+    "[IMG] DogFood SS": 2500,
+    "[IMG] EuroSAT SS": 21600,
+    "[IMG] FashionMNIST SS": 60000,
+    "[IMG] MNIST SS": 60000,
+    "[IMG] Oxford Pets SS": 7390,
+    "[IMG] Snacks SS": 4838,
+    "[TAB] California SS": 20634,
+    "[TAB] Credit SS": 16714,
+    "[TAB] Electricity SS": 38474,
+    "[TAB] Wine SS": 2554,
+    "[TXT] 20News SS": 11300,
+    "[TXT] HateSpeech SS": 10900,
+    "[TXT] IMDB SS": 25000,
+    "[TXT] PoemSentiment SS": 892,
+    "[TXT] SMSSpam SS": 5574,
+}

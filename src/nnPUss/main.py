@@ -11,6 +11,7 @@ if __name__ == "__main__":
         # for exp_number in range(6, 8):
         # for exp_number in range(8, 10):
         for label_frequency in [
+            0.9,
             0.7,
             0.02,
             0.5,
