@@ -1,3 +1,5 @@
+from typing import Optional
+
 from attr import dataclass
 
 
@@ -14,6 +16,8 @@ class MetricValues:
     f1: float
     auc: float
 
-    loss: float
-    stopping_epoch: int
-    time: float
+    loss: Optional[float] = None
+
+    epoch: Optional[int] = None
+    stopping_epoch: Optional[int] = None
+    time: Optional[float] = None

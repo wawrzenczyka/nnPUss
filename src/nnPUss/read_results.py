@@ -74,6 +74,40 @@ for metric in ["accuracy", "precision", "recall", "f1"]:
         display(df)
         display(diff_pivot)
 
+# %%
+results_df
+for metric in ["accuracy", "precision", "recall", "f1"]:
+    df = results_df[results_df.dataset.str.contains(" CC")].pivot_table(
+        values=metric, index=["dataset", "label_frequency"], columns="model"
+    )
+    df["Improvement"] = df["nnPUcc"] - df["nnPUss"]
+    df = df.reset_index(drop=False).melt(
+        id_vars=["dataset", "label_frequency"], value_name=metric
+    )
+    df.model = pd.Categorical(
+        df.model, categories=["nnPUss", "nnPUcc", "Improvement"], ordered=True
+    )
+    df = (
+        df.pivot_table(
+            values=metric, index=["label_frequency", "model"], columns=["dataset"]
+        )
+        * 100
+    )
+    # df["uPUcc improvement"] = df["uPUcc"] - df["uPUss"]
+    df = df.round(2)
+    df.to_csv(f"csv/CC-datasets-{metric}.csv")
+    # diff_pivot = df.reset_index(drop=False).pivot_table(
+    #     values="nnPUcc improvement",
+    #     index="label_frequency",
+    #     columns="dataset",
+    # )
+    # diff_pivot.to_csv(f"csv/CC-datasets-{metric}-diff-pivot.csv")
+    if metric in ["accuracy"]:
+        display(df)
+        # display(diff_pivot)
+
+    with open("test.tex", "w") as f:
+        df.to_latex(f)
 
 # %%
 results_df[

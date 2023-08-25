@@ -1,4 +1,3 @@
-# %%
 import json
 import os
 import time
@@ -38,6 +37,9 @@ class Experiment:
             weight_decay=0.005,
         )
 
+        self.train_metrics = []
+        self.test_metrics = []
+
     def run(self):
         os.makedirs(self.experiment_config.output_dir, exist_ok=True)
 
@@ -55,7 +57,7 @@ class Experiment:
                 always_stateful=False,
             )
 
-            loss_details = self._train(kbar)
+            loss_details = self._train(epoch, kbar)
             loss_details["Epoch"] = epoch
             loss_details_history.append(loss_details)
             self._test(epoch, kbar)
@@ -91,12 +93,6 @@ class Experiment:
                 train=is_train_set,
                 download=True,
                 random_seed=self.experiment_config.seed,
-                # transform=transforms.Compose(
-                #     [
-                #         transforms.ToTensor(),
-                #         # self.experiment_config.dataset_config.normalization,
-                #     ]
-                # ),
             )
 
         train_set = data["train"]
@@ -105,10 +101,6 @@ class Experiment:
             train_set,
             batch_size=self.experiment_config.dataset_config.train_batch_size,
             shuffle=True,
-            # num_workers=6,
-            # prefetch_factor=6,
-            # pin_memory=True,
-            # persistent_workers=True,
         )
         self.n_inputs = len(next(iter(train_set))[0].reshape(-1))
 
@@ -119,10 +111,12 @@ class Experiment:
             shuffle=False,
         )
 
-    def _train(self, kbar: pkbar.Kbar):
+    def _train(self, epoch: int, kbar: pkbar.Kbar):
         self.model.train()
         tr_loss = 0
 
+        targets = []
+        preds = []
         loss_fct = self.experiment_config.PULoss(prior=self.prior)
         for batch_idx, (data, target, label) in enumerate(self.train_loader):
             data, label = data.to(self.device), label.to(self.device)
@@ -139,6 +133,17 @@ class Experiment:
                 target.cpu().numpy().reshape(-1), y_pred.cpu().numpy().reshape(-1)
             )
             kbar.update(batch_idx + 1, values=[("loss", loss), ("acc", acc)])
+
+            targets.append(target.reshape(-1))
+            preds.append(y_pred.reshape(-1))
+
+        targets = torch.cat(targets).detach().cpu().numpy()
+        preds = torch.cat(preds).detach().cpu().numpy()
+
+        metric_values = self._calculate_metrics(targets, preds)
+        metric_values.loss = tr_loss
+        metric_values.epoch = epoch
+        self.train_metrics.append(metric_values)
 
         history = loss_fct.history
         history_means = {k: np.mean(v) for k, v in history.items()}
@@ -189,15 +194,24 @@ class Experiment:
         targets = torch.cat(targets).detach().cpu().numpy()
         preds = torch.cat(preds).detach().cpu().numpy()
 
+        metric_values = self._calculate_metrics(targets, preds)
+        metric_values.loss = test_loss
+        metric_values.epoch = epoch
+        self.test_metrics.append(metric_values)
+
         if save_metrics:
-            metric_values = self._calculate_metrics(test_loss, targets, preds)
+            metric_values.time = self.training_time
 
             with open(self.experiment_config.metrics_file, "w") as f:
                 json.dump(metric_values, f, cls=DictJsonEncoder)
+            with open(self.experiment_config.train_metrics_per_epoch_file, "w") as f:
+                json.dump(self.train_metrics, f, cls=DictJsonEncoder)
+            with open(self.experiment_config.test_metrics_per_epoch_file, "w") as f:
+                json.dump(self.test_metrics, f, cls=DictJsonEncoder)
 
         return test_loss
 
-    def _calculate_metrics(self, test_loss, targets, preds):
+    def _calculate_metrics(self, targets, preds):
         y_true = np.where(targets == 1, 1, 0)
         y_pred = np.where(preds == 1, 1, 0)
 
@@ -211,10 +225,6 @@ class Experiment:
             recall=metrics.recall_score(y_true, y_pred),
             f1=metrics.f1_score(y_true, y_pred),
             auc=metrics.roc_auc_score(y_true, y_pred),
-            loss=test_loss,
-            # stopping_epoch=self.early_stopping_epoch,
-            stopping_epoch=self.experiment_config.dataset_config.num_epochs,
-            time=self.training_time,
         )
 
         return metric_values

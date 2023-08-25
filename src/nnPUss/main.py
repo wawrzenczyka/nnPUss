@@ -5,24 +5,21 @@ from loss import nnPUccLoss, nnPUssLoss, uPUccLoss, uPUssLoss
 from run_experiment import Experiment
 
 if __name__ == "__main__":
-    for exp_number in range(0, 10):
-        # for exp_number in range(2, 4):
-        # for exp_number in range(4, 6):
-        # for exp_number in range(6, 8):
-        # for exp_number in range(8, 10):
+    # for exp_number in range(0, 10):
+    for exp_number in range(100, 101):
         for label_frequency in [
             0.9,
-            0.7,
-            0.02,
-            0.5,
-            0.3,
-            0.1,
+            # 0.7,
+            # 0.02,
+            # 0.5,
+            # 0.3,
+            # 0.1,
         ]:
             for dataset_config in [
                 # DatasetConfigs.CIFAR_CC,
                 # DatasetConfigs.CIFAR_SS,
                 # DatasetConfigs.MNIST_CC,
-                # DatasetConfigs.MNIST_SS,
+                DatasetConfigs.MNIST_SS,
                 # DatasetConfigs.FashionMNIST_CC,
                 # DatasetConfigs.FashionMNIST_SS,
                 # DatasetConfigs.EuroSAT_CC,
