@@ -7,3 +7,8 @@ data/
 output*/
 csv/
 old-outputs*/
+*.pdf
+*.svg
+*.png
+*.rar
+*.zip

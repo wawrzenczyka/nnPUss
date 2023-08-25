@@ -21,6 +21,10 @@ if __name__ == "__main__":
             for dataset_config in [
                 # DatasetConfigs.CIFAR_CC,
                 # DatasetConfigs.CIFAR_SS,
+                # DatasetConfigs.MNIST_CC,
+                # DatasetConfigs.MNIST_SS,
+                # DatasetConfigs.FashionMNIST_CC,
+                # DatasetConfigs.FashionMNIST_SS,
                 # DatasetConfigs.EuroSAT_CC,
                 # DatasetConfigs.EuroSAT_SS,
                 # DatasetConfigs.ChestXRay_CC,
@@ -33,10 +37,6 @@ if __name__ == "__main__":
                 # DatasetConfigs.Beans_SS,
                 # DatasetConfigs.OxfordPets_CC,
                 # DatasetConfigs.OxfordPets_SS,
-                # DatasetConfigs.MNIST_CC,
-                # DatasetConfigs.MNIST_SS,
-                # DatasetConfigs.FashionMNIST_CC,
-                # DatasetConfigs.FashionMNIST_SS,
                 # //
                 # DatasetConfigs.TwentyNews_CC,
                 # DatasetConfigs.TwentyNews_SS,
