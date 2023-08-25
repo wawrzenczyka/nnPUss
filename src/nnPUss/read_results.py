@@ -34,45 +34,51 @@ pd.set_option("display.max_rows", 500)
 for metric in ["accuracy", "precision", "recall", "f1"]:
     df = (
         results_df[results_df.dataset.str.contains(" CC")].pivot_table(
-            values=metric, index=["dataset", "label_frequency"], columns="model"
+            values=metric,
+            index=["dataset", "label_frequency"],
+            columns="model",
+            aggfunc=[pd.Series.mean, pd.Series.sem],
         )
         * 100
     )
-    df["nnPUcc improvement"] = df["nnPUcc"] - df["nnPUss"]
+    df[("", "nnPUcc improvement")] = df[("mean", "nnPUcc")] - df[("mean", "nnPUss")]
     # df["uPUcc improvement"] = df["uPUcc"] - df["uPUss"]
     df = df.round(2)
     df.to_csv(f"csv/CC-datasets-{metric}.csv")
-    diff_pivot = df.reset_index(drop=False).pivot_table(
-        values="nnPUcc improvement",
-        index="label_frequency",
-        columns="dataset",
-    )
-    diff_pivot.to_csv(f"csv/CC-datasets-{metric}-diff-pivot.csv")
+    # diff_pivot = df.reset_index(drop=False).pivot_table(
+    #     values="nnPUcc improvement",
+    #     index="label_frequency",
+    #     columns="dataset",
+    # )
+    # diff_pivot.to_csv(f"csv/CC-datasets-{metric}-diff-pivot.csv")
     if metric in ["accuracy"]:
         display(df)
-        display(diff_pivot)
+        # display(diff_pivot)
 
 # %%
 for metric in ["accuracy", "precision", "recall", "f1"]:
     df = (
         results_df[results_df.dataset.str.contains(" SS")].pivot_table(
-            values=metric, index=["dataset", "label_frequency"], columns="model"
+            values=metric,
+            index=["dataset", "label_frequency"],
+            columns="model",
+            aggfunc=[pd.Series.mean, pd.Series.sem],
         )
         * 100
     )
-    df["nnPUss improvement"] = df["nnPUss"] - df["nnPUcc"]
+    df[("", "nnPUss improvement")] = df[("mean", "nnPUss")] - df[("mean", "nnPUcc")]
     # df["uPUss improvement"] = df["uPUss"] - df["uPUcc"]
     df = df.round(2)
     df.to_csv(f"csv/SS-datasets-{metric}.csv")
-    diff_pivot = df.reset_index(drop=False).pivot_table(
-        values="nnPUss improvement",
-        index="label_frequency",
-        columns="dataset",
-    )
-    diff_pivot.to_csv(f"csv/SS-datasets-{metric}-diff-pivot.csv")
+    # diff_pivot = df.reset_index(drop=False).pivot_table(
+    #     values="nnPUss improvement",
+    #     index="label_frequency",
+    #     columns="dataset",
+    # )
+    # diff_pivot.to_csv(f"csv/SS-datasets-{metric}-diff-pivot.csv")
     if metric in ["accuracy"]:
         display(df)
-        display(diff_pivot)
+        # display(diff_pivot)
 
 
 # %%
