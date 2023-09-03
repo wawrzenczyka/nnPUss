@@ -1,11 +1,9 @@
 # %%
-import os
-
 import altair as alt
-import cairosvg
 import numpy as np
 import pandas as pd
 import scipy.stats
+from save_chart import save_chart
 
 domain = np.linspace(-5, 5, 100)
 positive_dist = scipy.stats.distributions.norm.pdf(domain, loc=2)
@@ -95,7 +93,7 @@ chart = (
                 "Unlabeled density",
             ],
         ).legend(title=None, labelLimit=400),
-        # .legend(orient="bottom", title=None),
+        # .legend(orient="bottom", title=None, labelLimit=400),
     )
     .facet(
         row="Label frequency:N",
@@ -108,15 +106,6 @@ chart = (
     # .configure_title(fontSize=20, anchor="middle")
 )
 
-chart.save("ss_vs_cc.png")
-chart.save(
-    os.path.join(
-        # "extra-pictures",
-        "ss_vs_cc.svg",
-    ),
-    # engine="vl-convert",
-)
-cairosvg.svg2pdf(url="ss_vs_cc.svg", write_to="ss_vs_cc.pdf")
-chart
+save_chart(chart, "img", "ss_vs_cc")
 
 # %%

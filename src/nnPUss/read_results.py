@@ -13,6 +13,10 @@ for directory, subdirs, files in os.walk(RESULTS_DIR):
         metrics_file_path = os.path.join(directory, "metrics.json")
         with open(metrics_file_path, "r") as f:
             metric_values = json.load(f)
+            if metric_values["label_frequency"] == 0.02:
+                continue
+
+            metric_values["label_frequency"] = f'{metric_values["label_frequency"]:.1f}'
             results.append(metric_values)
         # print(metrics_file_path)
 
@@ -74,18 +78,86 @@ for metric in ["accuracy", "precision", "recall", "f1"]:
         display(df)
         display(diff_pivot)
 
+
 # %%
-results_df
+import re
+
+DIR = "latex"
+
+
+def merge_latex_headers(latex_table, scaling=None):
+    # latex_table = re.sub(
+    #     r"nnPUss",
+    #     r"nnPU$_{ss}$",
+    #     latex_table,
+    # )
+    # latex_table = re.sub(
+    #     r"nnPUcc",
+    #     r"nnPU$_{cc}$",
+    #     latex_table,
+    # )
+
+    table_lines = latex_table.split("\n")
+    tabular_start = 0
+    tabular_end = len(table_lines) - 3
+
+    def process_line(l):
+        return [
+            "\\textbf{" + name.replace("\\", "").strip() + "}"
+            for name in l.split("&")
+            if name.replace("\\", "").strip() != ""
+        ]
+
+    header_line, index_line = (
+        table_lines[tabular_start + 1],
+        table_lines[tabular_start + 2],
+    )
+    headers = process_line(header_line)
+    index_names = process_line(index_line)
+
+    new_headers = index_names + headers
+    new_headers = " & ".join(new_headers) + " \\\\"
+
+    table_lines.remove(header_line)
+    table_lines.remove(index_line)
+    table_lines.insert(tabular_start + 1, new_headers)
+
+    table_lines = [
+        "\t" + l if i > tabular_start and i < tabular_end else l
+        for i, l in enumerate(table_lines)
+    ]
+
+    table_lines.insert(tabular_end, "\\bottomrule")
+
+    inserted_extra_separators = 0
+    row = tabular_end - 3
+    while row > tabular_start + 2:
+        table_lines.insert(row, "\\midrule")
+        inserted_extra_separators += 1
+        row -= 3
+
+    table_lines.insert(tabular_start + 2, "\\midrule")
+    table_lines.insert(tabular_start + 1, "\\toprule")
+
+    tabular_end += 3 + inserted_extra_separators
+
+    if scaling is not None:
+        table_lines.insert(tabular_end + 1, "}")
+        table_lines.insert(tabular_start, "\scalebox{" + f"{scaling:.2f}" + "}{")
+
+    return "\n".join(table_lines)
+
+
 for metric in ["accuracy", "precision", "recall", "f1"]:
     df = results_df[results_df.dataset.str.contains(" CC")].pivot_table(
         values=metric, index=["dataset", "label_frequency"], columns="model"
     )
-    df["Improvement"] = df["nnPUcc"] - df["nnPUss"]
+    df["$\Delta$"] = df["nnPUcc"] - df["nnPUss"]
     df = df.reset_index(drop=False).melt(
         id_vars=["dataset", "label_frequency"], value_name=metric
     )
     df.model = pd.Categorical(
-        df.model, categories=["nnPUss", "nnPUcc", "Improvement"], ordered=True
+        df.model, categories=["nnPUss", "nnPUcc", "$\Delta$"], ordered=True
     )
     df = (
         df.pivot_table(
@@ -93,21 +165,87 @@ for metric in ["accuracy", "precision", "recall", "f1"]:
         )
         * 100
     )
-    # df["uPUcc improvement"] = df["uPUcc"] - df["uPUss"]
+
     df = df.round(2)
     df.to_csv(f"csv/CC-datasets-{metric}.csv")
-    # diff_pivot = df.reset_index(drop=False).pivot_table(
-    #     values="nnPUcc improvement",
-    #     index="label_frequency",
-    #     columns="dataset",
-    # )
-    # diff_pivot.to_csv(f"csv/CC-datasets-{metric}-diff-pivot.csv")
+
+    df.columns.name = None
+    df.index.names = ["c", "Model"]
+    df.columns = [
+        col.replace(" CC", "")
+        .replace(" SS", "")
+        .replace("[IMG] ", "")
+        .replace("[TAB] ", "")
+        .replace("[TXT] ", "")
+        for col in df.columns
+    ]
     if metric in ["accuracy"]:
         display(df)
-        # display(diff_pivot)
 
-    with open("test.tex", "w") as f:
-        df.to_latex(f)
+    os.makedirs(DIR, exist_ok=True)
+    for i, df_half in enumerate(
+        [
+            df.iloc[:, : len(df.columns) // 2],
+            df.iloc[:, len(df.columns) // 2 :],
+        ]
+    ):
+        latex_table = df_half.style.format(precision=2).to_latex(
+            column_format="l|c|" + "c" * len(df_half.columns)
+        )
+        latex_table = merge_latex_headers(latex_table, scaling=0.75)
+        with open(os.path.join(DIR, f"CC-{metric}-p{i+1}.tex"), "w") as f:
+            f.write(latex_table)
+
+# %%
+DIR = "latex"
+
+for metric in ["accuracy", "precision", "recall", "f1"]:
+    df = results_df[results_df.dataset.str.contains(" SS")].pivot_table(
+        values=metric, index=["dataset", "label_frequency"], columns="model"
+    )
+    df["$\Delta$"] = df["nnPUss"] - df["nnPUcc"]
+    df = df.reset_index(drop=False).melt(
+        id_vars=["dataset", "label_frequency"], value_name=metric
+    )
+    df.model = pd.Categorical(
+        df.model, categories=["nnPUcc", "nnPUss", "$\Delta$"], ordered=True
+    )
+    df = (
+        df.pivot_table(
+            values=metric, index=["label_frequency", "model"], columns=["dataset"]
+        )
+        * 100
+    )
+
+    df = df.round(2)
+    df.to_csv(f"csv/SS-datasets-{metric}.csv")
+
+    df.columns.name = None
+    df.index.names = ["c", "Model"]
+    df.columns = [
+        col.replace(" CC", "")
+        .replace(" SS", "")
+        .replace("[IMG] ", "")
+        .replace("[TAB] ", "")
+        .replace("[TXT] ", "")
+        for col in df.columns
+    ]
+    if metric in ["accuracy"]:
+        display(df)
+
+    os.makedirs(DIR, exist_ok=True)
+    for i, df_half in enumerate(
+        [
+            df.iloc[:, : len(df.columns) // 2],
+            df.iloc[:, len(df.columns) // 2 :],
+        ]
+    ):
+        latex_table = df_half.style.format(precision=2).to_latex(
+            column_format="l|c|" + "c" * len(df_half.columns)
+        )
+        latex_table = merge_latex_headers(latex_table, scaling=0.75)
+        with open(os.path.join(DIR, f"SS-{metric}-p{i+1}.tex"), "w") as f:
+            f.write(latex_table)
 
 # %%
 results_df[

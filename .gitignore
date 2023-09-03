@@ -6,6 +6,8 @@ data/
 *.bin
 output*/
 csv/
+img/
+latex/
 old-outputs*/
 *.pdf
 *.svg
