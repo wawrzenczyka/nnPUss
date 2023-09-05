@@ -80,7 +80,7 @@ chart = (
     .encode(
         x=alt.X("epoch:N").title("Epoch"),
         y=alt.Y("accuracy:Q").title("Accuracy"),
-        color=alt.Color("model:N").legend(title="Model", labelLimit=400),
+        color=alt.Color("model:N").legend(title="Method", labelLimit=400),
     )
     .facet(column=alt.Facet("dataset:N").title(None))
 )

@@ -129,7 +129,7 @@ loss_history = loss_history_pivot.melt(
 )
 
 loss_history["Component type"] = np.where(
-    loss_history["Component"].str.contains("Correct"), "Correct value", "Model value"
+    loss_history["Component"].str.contains("Correct"), "Correct value", "Method value"
 )
 loss_history["Component"] = np.where(
     loss_history["Component"].str.contains(" "),
@@ -173,7 +173,7 @@ chart = (
         y=alt.Y("Value:Q"),
         color=alt.Color("Component:N").scale(domain=components, range=colors),
         strokeDash=alt.StrokeDash("Component type:N").sort(
-            ["Model value", "Correct value"]
+            ["Method value", "Correct value"]
         ),
         # shape=alt.Shape("Component:N"),
     )

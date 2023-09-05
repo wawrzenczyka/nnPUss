@@ -43,7 +43,7 @@ chart = (
         x=alt.X("label_frequency").title("Label frequency"),
         y=alt.Y("accuracy").scale(zero=False).title("Accuracy"),
         color=alt.Color("dataset").legend(None),
-        strokeDash=alt.StrokeDash("model").sort(["nnPUss", "nnPUcc"]).title("Model"),
+        strokeDash=alt.StrokeDash("model").sort(["nnPUss", "nnPUcc"]).title("Method"),
         facet=alt.Facet("dataset").columns(6).title(None),
     )
 )
@@ -58,7 +58,7 @@ chart = (
         x=alt.X("label_frequency").title("Label frequency"),
         y=alt.Y("accuracy").scale(zero=False).title("Accuracy"),
         color=alt.Color("dataset").legend(None),
-        strokeDash=alt.StrokeDash("model").sort(["nnPUcc", "nnPUss"]).title("Model"),
+        strokeDash=alt.StrokeDash("model").sort(["nnPUcc", "nnPUss"]).title("Method"),
         facet=alt.Facet("dataset").columns(6).title(None),
     )
 )

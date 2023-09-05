@@ -190,31 +190,6 @@ class PUDatasetBase:
             return None
 
 
-# class MNIST_PU(PUDatasetBase, MNIST):
-#     def __init__(
-#         self,
-#         root,
-#         pu_labeler: PULabeler,
-#         target_transformer: BinaryTargetTransformer = BinaryTargetTransformer(
-#             included_classes=np.arange(10), positive_classes=[1, 3, 5, 7, 9]
-#         ),
-#         train=True,
-#         download=False,
-#         random_seed=None,
-#     ):
-#         MNIST.__init__(
-#             self,
-#             root,
-#             train=train,
-#             download=download,
-#         )
-#         self.data = self.data / 255.0
-
-#         self.target_transformer = target_transformer
-#         self.pu_labeler = pu_labeler
-#         self._convert_to_pu_data()
-
-
 class DatasetSplitterMixin:
     def get_split_idx(
         self, dataset, split_type: Literal["train", "test"], random_seed, test_ratio=0.2
@@ -250,21 +225,20 @@ class SentenceTransformersDataset(Dataset):
         download=True,  # ignored
         random_seed=None,
     ):
-        news_dataset = load_dataset(
+        dataset = load_dataset(
             dataset_hub_path, cache_dir=os.path.join(root, dataset_name)
         )
-        # embedding_model = SentenceTransformer("all-mpnet-base-v2")
         embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
         self.train = train
         if self.train:
-            news_dataset = news_dataset["train"]
+            dataset = dataset["train"]
         else:
-            news_dataset = news_dataset["test"]
+            dataset = dataset["test"]
 
-        texts = news_dataset[text_col]
+        texts = dataset[text_col]
         self.data = torch.from_numpy(embedding_model.encode(texts))
-        self.targets = torch.tensor(news_dataset[label_col])
+        self.targets = torch.tensor(dataset[label_col])
         self.transform = transform
         self.target_transform = target_transform
 
@@ -763,7 +737,9 @@ class ImageEmbeddingDataset(DatasetSplitterMixin, PUDatasetBase):
             examples["data"] = embeddings
             return examples
 
-        dataset = dataset.map(transforms, remove_columns=[image_col], batched=True)
+        dataset = dataset.map(
+            transforms, remove_columns=[image_col], batched=True
+        )
         self.data = torch.tensor(dataset["data"])
         self.targets = torch.tensor(dataset[label_col])
         if self.targets.dtype == torch.bool:
