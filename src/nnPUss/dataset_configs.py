@@ -1,6 +1,4 @@
-from torchvision import transforms
-
-from src.nnPUss.dataset import (
+from dataset import (
     CIFAR_PU,
     IMDB_PU,
     MNIST_PU,
@@ -24,6 +22,7 @@ from src.nnPUss.dataset import (
     TBWine_PU,
     TwentyNews_PU,
 )
+from torchvision import transforms
 
 
 class DatasetConfig:

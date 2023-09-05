@@ -18,7 +18,6 @@ for directory, subdirs, files in os.walk(RESULTS_DIR):
 
             metric_values["label_frequency"] = f'{metric_values["label_frequency"]:.1f}'
             results.append(metric_values)
-        # print(metrics_file_path)
 
 results_df = pd.DataFrame.from_records(results)
 display(results_df)
@@ -86,17 +85,6 @@ DIR = "latex"
 
 
 def merge_latex_headers(latex_table, scaling=None):
-    # latex_table = re.sub(
-    #     r"nnPUss",
-    #     r"nnPU$_{ss}$",
-    #     latex_table,
-    # )
-    # latex_table = re.sub(
-    #     r"nnPUcc",
-    #     r"nnPU$_{cc}$",
-    #     latex_table,
-    # )
-
     table_lines = latex_table.split("\n")
     tabular_start = 0
     tabular_end = len(table_lines) - 3
