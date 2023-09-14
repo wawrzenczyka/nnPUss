@@ -166,21 +166,28 @@ colors = [
 
 
 chart = (
-    alt.Chart(loss_history, width=500, height=200)
-    .mark_line(opacity=0.7)
-    .encode(
-        x=alt.X("Epoch:N"),
-        y=alt.Y("Value:Q"),
-        color=alt.Color("Component:N").scale(domain=components, range=colors),
-        strokeDash=alt.StrokeDash("Component type:N").sort(
-            ["Method value", "Correct value"]
-        ),
-        # shape=alt.Shape("Component:N"),
+    (
+        alt.Chart(loss_history, width=500, height=200)
+        .mark_line(opacity=0.7)
+        .encode(
+            x=alt.X("Epoch:Q"),
+            y=alt.Y("Value:Q"),
+            color=alt.Color("Component:N").scale(domain=components, range=colors),
+            strokeDash=alt.StrokeDash("Component type:N").sort(
+                ["Method value", "Correct value"]
+            ),
+            # shape=alt.Shape("Component:N"),
+        )
+        .facet(
+            column=alt.Facet("Model:N").title(None),
+            row=alt.Facet("Dataset:N").title(None),
+        )
     )
-    .facet(
-        column=alt.Facet("Model:N").title(None), row=alt.Facet("Dataset:N").title(None)
-    )
-).configure_point(size=10)
+    .configure_point(size=10)
+    .configure_axis(labelFontSize=15, titleFontSize=15)
+    .configure_header(titleFontSize=18, labelFontSize=18)
+    .configure_legend(labelFontSize=15, titleFontSize=15)
+)
 
 save_chart(chart, "img", "loss_components")
 chart

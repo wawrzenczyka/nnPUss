@@ -75,14 +75,19 @@ test_metrics_per_epoch = test_metrics_per_epoch.loc[
 test_metrics_per_epoch
 
 chart = (
-    alt.Chart(test_metrics_per_epoch, width=500, height=200)
-    .mark_line()
-    .encode(
-        x=alt.X("epoch:N").title("Epoch"),
-        y=alt.Y("accuracy:Q").title("Accuracy"),
-        color=alt.Color("model:N").legend(title="Method", labelLimit=400),
+    (
+        alt.Chart(test_metrics_per_epoch, width=500, height=200)
+        .mark_line()
+        .encode(
+            x=alt.X("epoch:Q").title("Epoch"),
+            y=alt.Y("accuracy:Q").title("Accuracy"),
+            color=alt.Color("model:N").legend(title="Method", labelLimit=400),
+        )
+        .facet(column=alt.Facet("dataset:N").title(None))
     )
-    .facet(column=alt.Facet("dataset:N").title(None))
+    .configure_axis(labelFontSize=15, titleFontSize=15)
+    .configure_header(titleFontSize=18, labelFontSize=18)
+    .configure_legend(labelFontSize=15, titleFontSize=15)
 )
 
 save_chart(chart, "img", "overfitting")

@@ -104,8 +104,12 @@ chart = (
     .configure_range(category=alt.RangeScheme(colors))
     # .properties(title="Density")
     # .configure_title(fontSize=20, anchor="middle")
+    .configure_axis(labelFontSize=13, titleFontSize=13)
+    .configure_header(titleFontSize=15, labelFontSize=15)
+    .configure_legend(labelFontSize=13, titleFontSize=13)
 )
 
 save_chart(chart, "img", "ss_vs_cc")
+chart
 
 # %%

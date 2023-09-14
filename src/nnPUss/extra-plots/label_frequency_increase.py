@@ -46,6 +46,9 @@ chart = (
         strokeDash=alt.StrokeDash("model").sort(["nnPUss", "nnPUcc"]).title("Method"),
         facet=alt.Facet("dataset").columns(6).title(None),
     )
+    .configure_axis(labelFontSize=14, titleFontSize=14)
+    .configure_header(titleFontSize=16, labelFontSize=16)
+    .configure_legend(labelFontSize=14, titleFontSize=14)
 )
 save_chart(chart, "img", "lf_increase_ss")
 chart
@@ -61,6 +64,9 @@ chart = (
         strokeDash=alt.StrokeDash("model").sort(["nnPUcc", "nnPUss"]).title("Method"),
         facet=alt.Facet("dataset").columns(6).title(None),
     )
+    .configure_axis(labelFontSize=14, titleFontSize=14)
+    .configure_header(titleFontSize=16, labelFontSize=16)
+    .configure_legend(labelFontSize=14, titleFontSize=14)
 )
 save_chart(chart, "img", "lf_increase_cc")
 chart
