@@ -1,6 +1,6 @@
 # PyTorch implementation of nnPUss / nnPUcc algorithm
 
-Implementation repository for "Case-control versus single-sample for PU data: the story of two scenarios" paper.
+Implementation repository for "Single-sample versus case-control sampling schemes for Positive Unlabeled data: the story of two scenarios" paper.
 
 ## Requirements
 
@@ -43,3 +43,7 @@ Some of the files in the directory are used for result generation:
 Repository root contain two more important elements:
 - `env.yml` - list of dependencies,
 - `test/` - tests for labeling scenarios.
+
+## Paper supplement
+
+You can find the paper supplement in the `Single-sample versus case-control sampling schemes for Positive Unlabeled data: the story of two scenarios – supplementary material.pdf` file in the repository root.
