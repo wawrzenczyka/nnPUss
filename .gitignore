@@ -10,6 +10,7 @@ img/
 latex/
 old-outputs*/
 *.pdf
+!Single sample versus case control sampling schemes for Positive Unlabeled data - the story of two scenarios - Supplement.pdf
 *.svg
 *.png
 *.rar
